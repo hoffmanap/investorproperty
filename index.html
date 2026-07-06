@@ -109,16 +109,19 @@
                 </div>
 
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                        <p class="text-sm text-slate-600 mt-1">Use the legend panel toggles in the top right of the map to filter layers.</p>
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
+                            <p class="text-sm text-slate-600 mt-1">Click a bar on the chart below to filter the map markers by that specific ZIP Code.</p>
+                        </div>
+                        <div id="active-filter-indicator" class="hidden bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-sm"></div>
                     </div>
                     <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 500px;"></div>
                 </div>
 
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                    <h3 class="text-lg font-bold text-slate-900 mb-1">Acquisitions by Geographic Sector</h3>
-                    <p class="text-xs text-slate-500 mb-6">Total volume of investor property purchases grouped by localized ZIP Code.</p>
+                    <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-chart-bar text-blue-600 mr-2"></i> Corporate Acquisitions by ZIP Code</h3>
+                    <p class="text-xs text-slate-500 mb-6">Total volume of investor property purchases grouped by sector. Click any column to activate a map filter.</p>
                     <div class="relative w-full h-72">
                         <canvas id="corporateZipChart"></canvas>
                     </div>
@@ -140,8 +143,8 @@
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
-                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings binned by nightly rate.</p>
+                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-tags text-blue-600 mr-2"></i> Nightly Pricing Breakdown</h3>
+                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings binned by price per night parameters.</p>
                         <div class="flex-1 relative w-full h-64"><canvas id="strChart"></canvas></div>
                     </div>
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -170,8 +173,10 @@
     <script>
         let dataset = { investor: [], str: [], displacement: [], avgAdr: 150.0 };
         let leafletMap = null;
+        let localLayer = null, nonLocalLayer = null, strConversionLayer = null;
         let strChartInstance = null;
-        let corporateZipChartInstance = null; // Added context tracker variable
+        let corporateZipChartInstance = null;
+        let currentZipFilter = null; // Global cross-filter toggle variable
 
         // Bounding Box check for El Paso coordinates
         function getElPasoCoordinates(row) {
@@ -186,7 +191,15 @@
             return null;
         }
 
-        // Strict validation matches case-insensitive parameters
+        // Extracts ZIP codes case-insensitively from the investor tracking table
+        function getPropertyZip(row) {
+            let zKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'szip' || k.toLowerCase().trim() === 'szip5' || k.toLowerCase().trim() === 'szipcode');
+            let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
+            if (zip.length >= 5) return zip.substring(0, 5);
+            return "";
+        }
+
+        // Strict evaluation matching user column requirements
         function checkIsMailingLocal(row) {
             let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
             let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
@@ -194,9 +207,7 @@
             if (cityKey && stateKey) {
                 let city = String(row[cityKey]).toLowerCase().trim();
                 let state = String(row[stateKey]).toLowerCase().trim();
-                if (city === 'el paso' && state === 'tx') {
-                    return 'local';
-                }
+                if (city === 'el paso' && state === 'tx') return 'local';
             }
             return 'non-local'; 
         }
@@ -204,6 +215,19 @@
         function cleanString(val) {
             if (!val) return "";
             return String(val).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        }
+
+        // Extract identifiers for mapping cross-table keys relationally
+        function getRowIdentificationTokens(row) {
+            let tokens = new Set();
+            for (let key in row) {
+                let kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (kLower.includes('parcel') || kLower.includes('id') || kLower.includes('account') || kLower.includes('address') || kLower.includes('fid')) {
+                    let val = String(row[key]).trim().toLowerCase();
+                    if (val && val !== 'undefined' && val !== 'null' && val !== '') tokens.add(val);
+                }
+            }
+            return tokens;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -251,7 +275,6 @@
                     trimHeaders: true, 
                     complete: (results) => {
                         if(results.data && results.data.length > 0) {
-                            let headers = Object.keys(results.data[0]).slice(0, 4).join(', ');
                             document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)`;
                         }
                         resolve(results.data);
@@ -286,7 +309,7 @@
 
             if(tabId === 'tab-corporate') {
                 renderLeafletMap();
-                renderCorporateZipChart(); // Trigger graph compilation on view change
+                renderCorporateZipChart();
             } else if (tabId === 'tab-str') {
                 renderChartJS();
             }
@@ -304,31 +327,65 @@
                 attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
             }).addTo(leafletMap);
 
-            let localLayer = L.layerGroup();
-            let nonLocalLayer = L.layerGroup();
-            let strConversionLayer = L.layerGroup();
+            localLayer = L.layerGroup().addTo(leafletMap);
+            nonLocalLayer = L.layerGroup().addTo(leafletMap);
+            strConversionLayer = L.layerGroup().addTo(leafletMap);
+
+            let overlayMaps = {
+                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
+                "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
+                "<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions (Matches)": strConversionLayer
+            };
+
+            L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
+
+            populateMapMarkers();
+        }
+
+        // REFACTORED GENERATOR ENGINE: Repopulates markers dynamically based on filter state
+        function populateMapMarkers() {
+            if (!leafletMap) return;
+
+            localLayer.clearLayers();
+            nonLocalLayer.clearLayers();
+            strConversionLayer.clearLayers();
+
+            // Toggle top indicator element
+            const ind = document.getElementById('active-filter-indicator');
+            if (currentZipFilter) {
+                ind.innerHTML = `Active Filter: ZIP ${currentZipFilter} <button onclick='clearZipFilter()' class='ml-1.5 font-bold hover:text-red-600'>&times;</button>`;
+                ind.classList.remove('hidden');
+            } else {
+                ind.classList.add('hidden');
+            }
+
+            let investorLookupMap = new Map();
+            dataset.investor.forEach(row => {
+                let tokens = getRowIdentificationTokens(row);
+                tokens.forEach(token => investorLookupMap.set(token, row));
+            });
 
             let parcelIndex = new Map();
             let addressIndex = new Map();
-
             dataset.investor.forEach(row => {
                 ['parcelnumb', 'parcelnumb_no_formatting', 'alt_parcelnumb1', 'tax_id', 'geo_id', 'parcel'].forEach(key => {
                     let cleanVal = cleanString(row[key]);
                     if (cleanVal) parcelIndex.set(cleanVal, row);
                 });
-
                 ['address', 'original_address', 'mailadd'].forEach(key => {
                     let cleanVal = cleanString(row[key]);
                     if (cleanVal) addressIndex.set(cleanVal, row);
                 });
             });
 
-            // 1. Plot Investors
+            // 1. Plot Corporate Buyers
             dataset.investor.forEach(d => {
+                let zip = getPropertyZip(d);
+                if (currentZipFilter && zip !== currentZipFilter) return;
+
                 let coords = getElPasoCoordinates(d);
                 if (coords) {
                     let locality = checkIsMailingLocal(d);
-                    
                     let marker = L.circleMarker(coords, {
                         radius: 4.5,
                         fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", 
@@ -336,32 +393,40 @@
                         weight: 0.8,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Purchase</b><br>Mailing Origin: ${locality === 'local' ? 'Local (El Paso, TX)' : 'Out-of-Town Owner'}`);
+                    }).bindPopup(`<b>Corporate Purchase</b><br>ZIP Code: ${zip || 'Unknown'}<br>Mailing Origin: ${locality === 'local' ? 'Local Resident (El Paso, TX)' : 'Out-of-Town Investor'}`);
 
                     if (locality === 'local') localLayer.addLayer(marker);
                     else nonLocalLayer.addLayer(marker);
                 }
             });
 
-            // 2. Plot STR Conversions Relational Match
+            // 2. Plot Relational STR Conversions
             dataset.displacement.forEach(d => {
                 let coords = getElPasoCoordinates(d);
-                
+                let matchingInvestorRow = null;
+
+                let dTokens = getRowIdentificationTokens(d);
+                for (let token of dTokens) {
+                    if (investorLookupMap.has(token)) {
+                        matchingInvestorRow = investorLookupMap.get(token);
+                        if (!coords) coords = getElPasoCoordinates(matchingInvestorRow);
+                        break;
+                    }
+                }
+
                 if (!coords) {
                     for (let key in d) {
                         let val = cleanString(d[key]);
                         if (!val || val.length <= 2) continue;
-
-                        if (parcelIndex.has(val)) {
-                            coords = getElPasoCoordinates(parcelIndex.get(val));
-                            break;
-                        }
-                        if (addressIndex.has(val)) {
-                            coords = getElPasoCoordinates(addressIndex.get(val));
-                            break;
-                        }
+                        if (parcelIndex.has(val)) { matchingInvestorRow = parcelIndex.get(val); coords = getElPasoCoordinates(matchingInvestorRow); break; }
+                        if (addressIndex.has(val)) { matchingInvestorRow = addressIndex.get(val); coords = getElPasoCoordinates(addressIndex.get(val)); break; }
                     }
                 }
+
+                let zip = getPropertyZip(d);
+                if (!zip && matchingInvestorRow) zip = getPropertyZip(matchingInvestorRow);
+
+                if (currentZipFilter && zip !== currentZipFilter) return;
 
                 if (coords) {
                     let marker = L.circleMarker(coords, {
@@ -371,44 +436,44 @@
                         weight: 1.2,
                         opacity: 1,
                         fillOpacity: 0.9
-                    }).bindPopup(`<b>STR Conversion Match</b><br>Repurposed single family home.`);
+                    }).bindPopup(`<b>STR Conversion Match</b><br>ZIP Code: ${zip || 'Unknown'}<br>Repurposed family residence.`);
                     strConversionLayer.addLayer(marker);
                 }
             });
 
-            localLayer.addTo(leafletMap);
-            nonLocalLayer.addTo(leafletMap);
-            strConversionLayer.addTo(leafletMap);
-
-            let overlayMaps = {
-                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
-                "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
-                "<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions (Matches)": strConversionLayer
-            };
-
-            L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
+            updateChartColors();
         }
 
-        // ADDED GRAPH NODE: Computes and aggregates corporate acquisition counts by property ZIP
+        function clearZipFilter() {
+            currentZipFilter = null;
+            populateMapMarkers();
+        }
+
+        function getZipCountsObject() {
+            let zipCounts = {};
+            dataset.investor.forEach(row => {
+                let zip = getPropertyZip(row);
+                if(zip && zip.length === 5) zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+            });
+            return zipCounts;
+        }
+
+        // Dynamic Chart Highlighting Sync Layer
+        function updateChartColors() {
+            if (!corporateZipChartInstance) return;
+            let sortedZips = Object.entries(getZipCountsObject()).sort((a, b) => b[1] - a[1]);
+            let bgColors = sortedZips.map(item => {
+                return (currentZipFilter && item[0] === currentZipFilter) ? 'rgba(29, 78, 216, 1)' : 'rgba(59, 130, 246, 0.75)';
+            });
+            corporateZipChartInstance.data.datasets[0].backgroundColor = bgColors;
+            corporateZipChartInstance.update();
+        }
+
         function renderCorporateZipChart() {
             if (corporateZipChartInstance || dataset.investor.length === 0) return;
             const ctx = document.getElementById('corporateZipChart').getContext('2d');
             
-            let zipCounts = {};
-            dataset.investor.forEach(row => {
-                // Find column names indicating location zip codes explicitly (szip or szip5 from snippet)
-                let zKey = Object.keys(row).find(k => k.toLowerCase() === 'szip' || k.toLowerCase() === 'szip5' || k.toLowerCase() === 'szipcode');
-                let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
-                
-                // Exclude empty string allocations or out-of-bounds keys
-                if(zip && zip.length >= 5) {
-                    let zipShort = zip.substring(0, 5); // Cleans any hyphen extended variants
-                    zipCounts[zipShort] = (zipCounts[zipShort] || 0) + 1;
-                }
-            });
-
-            // Sort Zip Codes descending based on frequency volume profiles
-            let sortedZips = Object.entries(zipCounts).sort((a, b) => b[1] - a[1]);
+            let sortedZips = Object.entries(getZipCountsObject()).sort((a, b) => b[1] - a[1]);
             let labels = sortedZips.map(item => `ZIP ${item[0]}`);
             let counts = sortedZips.map(item => item[1]);
 
@@ -419,8 +484,69 @@
                     datasets: [{
                         label: 'Acquisitions Mapped',
                         data: counts,
-                        backgroundColor: 'rgba(59, 130, 246, 0.75)', // Deep blue layout variant accent
+                        backgroundColor: counts.map(() => 'rgba(59, 130, 246, 0.75)'),
                         borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            const label = corporateZipChartInstance.data.labels[idx];
+                            const zip = label.replace("ZIP ", "").trim();
+                            
+                            // Toggle selection filter state parameters
+                            currentZipFilter = (currentZipFilter === zip) ? null : zip;
+                            populateMapMarkers();
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // COMPLETED UPGRADE MODULE: Strict deterministic pricing column chart
+        function renderChartJS() {
+            if (strChartInstance || dataset.str.length === 0) return;
+            const ctx = document.getElementById('strChart').getContext('2d');
+            
+            let bins = {
+                'Under $50': 0, '$50-$100': 0, '$100-$150': 0,
+                '$150-$200': 0, '$200-$250': 0, '$250-$300': 0, 'Over $300': 0
+            };
+
+            dataset.str.forEach(r => {
+                let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
+                if (!pKey || !r[pKey]) return;
+                let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
+                if (!isNaN(val)) {
+                    if (val < 50) bins['Under $50']++;
+                    else if (val <= 100) bins['$50-$100']++;
+                    else if (val <= 150) bins['$100-$150']++;
+                    else if (val <= 200) bins['$150-$200']++;
+                    else if (val <= 250) bins['$200-$250']++;
+                    else if (val <= 300) bins['$250-$300']++;
+                    else bins['Over $300']++;
+                }
+            });
+
+            strChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bins),
+                    datasets: [{
+                        label: 'Active Hospitality Units',
+                        data: Object.values(bins),
+                        backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                        borderColor: 'rgba(37, 99, 235, 1)',
                         borderWidth: 1,
                         borderRadius: 4
                     }]
@@ -433,39 +559,6 @@
                         y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
                         x: { grid: { display: false } }
                     }
-                }
-            });
-        }
-
-        function renderChartJS() {
-            if (strChartInstance || dataset.str.length === 0) return;
-            const ctx = document.getElementById('strChart').getContext('2d');
-            
-            let zipCounts = {};
-            dataset.str.forEach(row => {
-                let zKey = Object.keys(row).find(k => k.toLowerCase().includes('zip'));
-                let zip = zKey ? row[zKey] : "Unknown";
-                zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-            });
-            
-            strChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(zipCounts),
-                    datasets: [{
-                        label: 'Active Listings',
-                        data: Object.values(zipCounts),
-                        backgroundColor: 'rgba(37, 99, 235, 0.7)',
-                        borderColor: 'rgba(37, 99, 235, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
                 }
             });
         }
