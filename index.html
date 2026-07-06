@@ -21,7 +21,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
-        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 6px !important;}
+        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 8px !important;}
     </style>
 </head>
 <body class="text-slate-800 flex h-screen overflow-hidden antialiased">
@@ -29,12 +29,12 @@
     <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
         <div class="flex items-center gap-3 mb-2">
             <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-500"></i>
-            <h2 id="loading-text" class="text-lg font-semibold">Running El Paso Geo-Scanner Engine...</h2>
+            <h2 id="loading-text" class="text-lg font-semibold">Running Cross-Reference Matching Engine...</h2>
         </div>
-        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Scanning columns for coordinate arrays matching El Paso geographic boundaries.</p>
+        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Cross-referencing property parcels to merge missing geographic data points.</p>
         
         <div class="w-full max-w-2xl bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-2 text-slate-300 shadow-2xl">
-            <div class="text-blue-400 font-bold border-b border-slate-800 pb-1 uppercase tracking-wider text-[10px]">Spreadsheet Headers Detected:</div>
+            <div class="text-blue-400 font-bold border-b border-slate-800 pb-1 uppercase tracking-wider text-[10px]">Data Alignment Logs:</div>
             <div id="diag-investor">📁 investor_buys.csv: <span class="text-slate-500">Reading...</span></div>
             <div id="diag-displacement">📁 local_displacement_trends.csv: <span class="text-slate-500">Reading...</span></div>
             <div id="diag-str">📁 active_str_listings.csv: <span class="text-slate-500">Reading...</span></div>
@@ -77,7 +77,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-corporate')">
                         <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-building text-blue-600 mr-2"></i> Corporate Ownership</h3>
-                        <p class="text-sm text-slate-600">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
+                        <p class="text-sm text-slate-660">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
                         <p class="text-sm text-blue-600 font-medium mt-4">View Map & Data &rarr;</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-str')">
@@ -165,39 +165,42 @@
         let leafletMap = null;
         let strChartInstance = null;
 
-        // ADVANCED GEO-SCANNER: Scans every key in a row for El Paso bounding box values
-        function scanRowForElPasoCoordinates(row) {
+        // Bounding Box check for El Paso coordinates
+        function getElPasoCoordinates(row) {
             let lat = null;
             let lon = null;
-            
             for (let key in row) {
                 let val = parseFloat(String(row[key]).trim());
                 if (!isNaN(val)) {
-                    // El Paso Latitudes fall strictly between 31.3 and 32.3
                     if (val >= 31.3 && val <= 32.3) lat = val;
-                    // El Paso Longitudes fall strictly between -106.9 and -105.9
                     if (val >= -106.9 && val <= -105.9) lon = val;
                 }
             }
             return (lat !== null && lon !== null) ? [lat, lon] : null;
         }
 
-        // SMART LOCALITY DETECTOR: Searches for state keys or columns marking out-of-town flags
-        function scanRowForLocality(row) {
-            let stateKey = Object.keys(row).find(k => k.toLowerCase().includes('state') || k.toLowerCase() === 'st');
-            if (stateKey && row[stateKey]) {
-                let stateCode = String(row[stateKey]).toUpperCase().trim();
-                if (stateCode.length === 2) return stateCode === 'TX' ? 'local' : 'non-local';
-            }
+        // MAILING ADDRESS LOCALITY DETECTOR: Checks if the owner's mailing address text contains "El Paso"
+        function checkIsMailingLocal(row) {
+            let addressKey = Object.keys(row).find(k => {
+                let l = k.toLowerCase();
+                return l.includes('mailing') || l.includes('owner_address') || l.includes('addr') || l.includes('location');
+            });
             
-            // Text-search fallback
-            for (let key in row) {
-                let text = String(row[key]).toLowerCase();
-                if (text.includes('out-of-state') || text.includes('non-local') || text.includes('out of town')) {
-                    return 'non-local';
-                }
+            if (addressKey && row[addressKey]) {
+                let addrText = String(row[addressKey]).toLowerCase();
+                // If it mentions "el paso", it is a local owner. If not, it is out-of-town.
+                return addrText.includes('el paso') ? 'local' : 'non-local';
             }
-            return 'unspecified';
+            return 'local'; // Fallback default
+        }
+
+        // UNIQUE ROW ID FINDER: Finds a shared key (parcel, id, address) to link tables relationally
+        function getRowRowKey(row) {
+            let keyCol = Object.keys(row).find(k => {
+                let l = k.toLowerCase();
+                return l === 'parcel' || l === 'id' || l === 'address' || l.includes('parcel') || l.includes('id');
+            });
+            return keyCol ? String(row[keyCol]).trim().toLowerCase() : null;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -227,16 +230,12 @@
                 initializeMetrics();
                 runTaxSimulation();
 
-                // Clear loading wall interface smoothly
                 document.getElementById('loading-overlay').style.opacity = '0';
                 setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
 
             }).catch(err => {
                 console.error(err);
-                document.getElementById('loading-text').innerText = "Sync / Location Halt";
-                const errBox = document.getElementById('error-message');
-                errBox.classList.remove('hidden');
-                errBox.innerHTML = `<strong>Data Verification Error:</strong> Unable to pull local files. Double-check that your csv tables are properly saved in the <code>/data/</code> repository folder.`;
+                document.getElementById('loading-text').innerText = "Sync Halt";
             });
         });
 
@@ -248,13 +247,13 @@
                     skipEmptyLines: true,
                     complete: (results) => {
                         if(results.data && results.data.length > 0) {
-                            let headers = Object.keys(results.data[0]).slice(0, 5).join(', ');
+                            let headers = Object.keys(results.data[0]).slice(0, 4).join(', ');
                             document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)<br><span class='text-slate-500 pl-4'>Headers: [${headers}...]</span>`;
                         }
                         resolve(results.data);
                     },
                     error: (error) => {
-                        document.getElementById(diagElementId).innerHTML = `❌ ${path.split('/').pop()} - File Not Found (404)`;
+                        document.getElementById(diagElementId).innerHTML = `❌ ${path.split('/').pop()} - Not Found`;
                         reject(error);
                     }
                 });
@@ -302,72 +301,75 @@
 
             let localLayer = L.layerGroup();
             let nonLocalLayer = L.layerGroup();
-            let unifiedLayer = L.layerGroup(); // Fallback if no state data found
             let strConversionLayer = L.layerGroup();
 
-            let hasOutofStateData = false;
+            // Build a fast key-value database lookup index from investor_buys.csv
+            let investorLookupIndex = new Map();
+            dataset.investor.forEach(row => {
+                let lookupKey = getRowRowKey(row);
+                if (lookupKey) {
+                    investorLookupIndex.set(lookupKey, row);
+                }
+            });
 
-            // 1. Plot Corporate Buyers via Geo-Scanner
+            // 1. Plot Investors and split them strictly by Mailing Address location
             dataset.investor.forEach(d => {
-                let coords = scanRowForElPasoCoordinates(d);
+                let coords = getElPasoCoordinates(d);
                 if (coords) {
-                    let locality = scanRowForLocality(d);
+                    let locality = checkIsMailingLocal(d);
                     
                     let marker = L.circleMarker(coords, {
-                        radius: 5,
-                        fillColor: locality === 'non-local' ? "#ef4444" : "#3b82f6", 
+                        radius: 4.5,
+                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue for local El Paso mailing, Red for Out-of-town
                         color: "#ffffff",
-                        weight: 1,
+                        weight: 0.8,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Asset</b><br>Classification: ${locality === 'non-local' ? 'Out-of-State Owner' : 'Texas Registered'}`);
+                    }).bindPopup(`<b>Corporate Purchase</b><br>Mailing Group: ${locality === 'local' ? 'Local El Paso Resident' : 'Out-of-Town Investor'}`);
 
-                    if (locality === 'non-local') {
-                        nonLocalLayer.addLayer(marker);
-                        hasOutofStateData = true;
-                    } else {
-                        localLayer.addLayer(marker);
-                    }
-                    unifiedLayer.addLayer(marker);
+                    if (locality === 'local') localLayer.addLayer(marker);
+                    else nonLocalLayer.addLayer(marker);
                 }
             });
 
-            // 2. Plot STR Conversions via Geo-Scanner
-            let mappedConversionsCount = 0;
+            // 2. Plot STR Conversions using the Relational Data Matching engine
             dataset.displacement.forEach(d => {
-                let coords = scanRowForElPasoCoordinates(d);
+                // First check if the displacement table has coordinates written directly
+                let coords = getElPasoCoordinates(d);
+                
+                // RELATIONAL DATA-JOIN: If blank, find the row's matching parcel inside the investor table and pull its coordinates
+                if (!coords) {
+                    let conversionKey = getRowRowKey(d);
+                    if (conversionKey && investorLookupIndex.has(conversionKey)) {
+                        let matchingInvestorRow = investorLookupIndex.get(conversionKey);
+                        coords = getElPasoCoordinates(matchingInvestorRow);
+                    }
+                }
+
                 if (coords) {
                     let marker = L.circleMarker(coords, {
-                        radius: 7,
-                        fillColor: "#f59e0b", 
+                        radius: 6.5,
+                        fillColor: "#f59e0b", // Amber/Yellow
                         color: "#1e1b4b",
-                        weight: 1.5,
+                        weight: 1.2,
                         opacity: 1,
                         fillOpacity: 0.9
-                    }).bindPopup(`<b>STR Conversion Match</b><br>Repurposed family residence.`);
+                    }).bindPopup(`<b>STR Conversion Match</b><br>Repurposed single family home.`);
                     strConversionLayer.addLayer(marker);
-                    mappedConversionsCount++;
                 }
             });
 
-            console.log(`Successfully mapped ${mappedConversionsCount} conversion markers via range scanner.`);
-
-            // Dynamic Layer Control Legend Assembly
-            let overlayMaps = {};
-            
-            if (hasOutofStateData) {
-                localLayer.addTo(leafletMap);
-                nonLocalLayer.addTo(leafletMap);
-                overlayMaps["<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (TX)"] = localLayer;
-                overlayMaps["<span class='text-red-500 font-bold text-lg'>■</span> Out-of-State Corporate"] = nonLocalLayer;
-            } else {
-                unifiedLayer.addTo(leafletMap);
-                overlayMaps["<span class='text-blue-500 font-bold text-lg'>■</span> Corporate Purchases"] = unifiedLayer;
-            }
-
-            // Always add conversions layer to the map and legend panel
+            // Add all layers to map by default
+            localLayer.addTo(leafletMap);
+            nonLocalLayer.addTo(leafletMap);
             strConversionLayer.addTo(leafletMap);
-            overlayMaps["<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions Matches"] = strConversionLayer;
+
+            // Assemble Layer Control Toggles Box
+            let overlayMaps = {
+                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso Mailing)": localLayer,
+                "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
+                "<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions (Matches)": strConversionLayer
+            };
 
             L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
         }
