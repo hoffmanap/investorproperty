@@ -77,7 +77,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-corporate')">
                         <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-building text-blue-600 mr-2"></i> Corporate Ownership</h3>
-                        <p class="text-sm text-slate-660">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
+                        <p class="text-sm text-slate-600">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
                         <p class="text-sm text-blue-600 font-medium mt-4">View Map & Data &rarr;</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-str')">
@@ -179,22 +179,23 @@
             return (lat !== null && lon !== null) ? [lat, lon] : null;
         }
 
-        // MAILING ADDRESS LOCALITY DETECTOR: Checks if the owner's mailing address text contains "El Paso"
+        // CRITICAL UPDATE: Strict evaluation based on user schema mapping parameters
         function checkIsMailingLocal(row) {
-            let addressKey = Object.keys(row).find(k => {
-                let l = k.toLowerCase();
-                return l.includes('mailing') || l.includes('owner_address') || l.includes('addr') || l.includes('location');
-            });
+            let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
+            let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
             
-            if (addressKey && row[addressKey]) {
-                let addrText = String(row[addressKey]).toLowerCase();
-                // If it mentions "el paso", it is a local owner. If not, it is out-of-town.
-                return addrText.includes('el paso') ? 'local' : 'non-local';
+            if (cityKey && stateKey) {
+                let city = String(row[cityKey]).toLowerCase().trim();
+                let state = String(row[stateKey]).toUpperCase().trim();
+                // Condition: MUST be El Paso, TX exactly to be local. Anything else is out of town.
+                if (city === 'el paso' && state === 'tx') {
+                    return 'local';
+                }
             }
-            return 'local'; // Fallback default
+            return 'non-local'; 
         }
 
-        // UNIQUE ROW ID FINDER: Finds a shared key (parcel, id, address) to link tables relationally
+        // UNIQUE ROW ID FINDER: Finds shared key to link tables relationally
         function getRowRowKey(row) {
             let keyCol = Object.keys(row).find(k => {
                 let l = k.toLowerCase();
@@ -303,7 +304,7 @@
             let nonLocalLayer = L.layerGroup();
             let strConversionLayer = L.layerGroup();
 
-            // Build a fast key-value database lookup index from investor_buys.csv
+            // Build relational index lookup map from investor dataset
             let investorLookupIndex = new Map();
             dataset.investor.forEach(row => {
                 let lookupKey = getRowRowKey(row);
@@ -312,7 +313,7 @@
                 }
             });
 
-            // 1. Plot Investors and split them strictly by Mailing Address location
+            // 1. Plot Corporate Buyers split strictly by user criteria
             dataset.investor.forEach(d => {
                 let coords = getElPasoCoordinates(d);
                 if (coords) {
@@ -320,24 +321,23 @@
                     
                     let marker = L.circleMarker(coords, {
                         radius: 4.5,
-                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue for local El Paso mailing, Red for Out-of-town
+                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue = El Paso, TX; Red = Out-of-town
                         color: "#ffffff",
                         weight: 0.8,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Purchase</b><br>Mailing Group: ${locality === 'local' ? 'Local El Paso Resident' : 'Out-of-Town Investor'}`);
+                    }).bindPopup(`<b>Corporate Purchase</b><br>Mailing Origin: ${locality === 'local' ? 'Local (El Paso, TX)' : 'Out-of-Town Owner'}`);
 
                     if (locality === 'local') localLayer.addLayer(marker);
                     else nonLocalLayer.addLayer(marker);
                 }
             });
 
-            // 2. Plot STR Conversions using the Relational Data Matching engine
+            // 2. Plot STR Conversions using Relational Data Matching
             dataset.displacement.forEach(d => {
-                // First check if the displacement table has coordinates written directly
                 let coords = getElPasoCoordinates(d);
                 
-                // RELATIONAL DATA-JOIN: If blank, find the row's matching parcel inside the investor table and pull its coordinates
+                // Relational join fallback if displacement row lacks coordinates directly
                 if (!coords) {
                     let conversionKey = getRowRowKey(d);
                     if (conversionKey && investorLookupIndex.has(conversionKey)) {
@@ -359,14 +359,14 @@
                 }
             });
 
-            // Add all layers to map by default
+            // Add layers to view canvas
             localLayer.addTo(leafletMap);
             nonLocalLayer.addTo(leafletMap);
             strConversionLayer.addTo(leafletMap);
 
-            // Assemble Layer Control Toggles Box
+            // Assemble definitive Layer Control panel
             let overlayMaps = {
-                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso Mailing)": localLayer,
+                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
                 "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
                 "<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions (Matches)": strConversionLayer
             };
