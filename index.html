@@ -55,7 +55,7 @@
                 <i class="fa-solid fa-building w-5 text-center"></i> Corporate Ownership
             </button>
             <button onclick="switchTab('tab-str')" id="btn-tab-str" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
-                <i class="fa-solid fa-house-chimney-user w-5 text-center"></i> STR Economic Impact
+                <i class="fa-solid fa-wallet w-5 text-center"></i> Rental & Affordability Impact
             </button>
         </nav>
     </aside>
@@ -80,8 +80,8 @@
                         <p class="text-sm text-blue-600 font-medium mt-4">View Map & Data &rarr;</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-str')">
-                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-house-chimney-user text-blue-600 mr-2"></i> Short-Term Rentals</h3>
-                        <p class="text-sm text-slate-600">Audits the growth of active vacation rentals taking single-family homes offline, evaluating their market footprint and municipal tax impact.</p>
+                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-wallet text-blue-600 mr-2"></i> Rental Market Impact</h3>
+                        <p class="text-sm text-slate-600">Audits active long-term rental market rates and inventory, tracking localized rent pricing trends and municipal housing affordability bounds.</p>
                         <p class="text-sm text-blue-600 font-medium mt-4">View Simulator &rarr;</p>
                     </div>
                 </div>
@@ -130,38 +130,44 @@
 
             <div id="tab-str" class="tab-content hidden space-y-8">
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">STR "Scattered Hotel" Economic Impact</h2>
-                    <p class="text-slate-600 mt-2">Evaluating the financial footprint of decentralized vacation rentals.</p>
+                    <h2 class="text-2xl font-bold text-slate-900">Long-Term Rental Inventory & Market Affordability Bounds</h2>
+                    <p class="text-slate-600 mt-2">Evaluating pricing pressures within El Paso's residential lease supply.</p>
                 </div>
                 <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
-                    <h3 class="text-lg font-bold text-blue-900 mb-2">What is the "Scattered Hotel" effect?</h3>
-                    <p class="text-sm text-blue-800 leading-relaxed">When investors acquire homes to use exclusively as Short-Term Rentals, they create a network of "scattered hotels" across residential neighborhoods.</p>
+                    <h3 class="text-lg font-bold text-blue-900 mb-2">Analyzing the Financialization Yield Curve</h3>
+                    <p class="text-sm text-blue-800 leading-relaxed">
+                        When single-family inventory is consolidated by corporate entities, homes are frequently converted into high-yield long-term rentals. The charts below track active market listings sourced via RentCast, tracking the community rent burden threshold based on local income constraints.
+                    </p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Vacation Rentals</p><h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Market Average Daily Rate</p><h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Market Rental Inventory</p><h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Average Monthly Lease Price</p><h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-tags text-blue-600 mr-2"></i> Nightly Pricing Breakdown</h3>
-                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings grouped by dynamically scaled price per night brackets.</p>
+                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-tags text-blue-600 mr-2"></i> Monthly Lease Pricing Distribution</h3>
+                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active lease listings binned into standard monthly pricing brackets.</p>
                         <div class="flex-1 relative w-full h-64"><canvas id="strChart"></canvas></div>
                     </div>
+                    
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-calculator text-blue-600 mr-2"></i> Municipal Tax Simulator</h3>
+                        <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-calculator text-blue-600 mr-2"></i> Community Rent Burden Simulator</h3>
+                        
                         <div class="space-y-6">
                             <div>
-                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Assumed Average Occupancy:</label><span id="val-occ" class="font-bold text-blue-600">60%</span></div>
-                                <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-blue-600">
+                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Target Annual Household Income:</label><span id="val-income" class="font-bold text-blue-600">$48,000</span></div>
+                                <input id="slider-income" type="range" min="20000" max="120000" step="2500" value="48000" oninput="runAffordabilitySimulation()" class="w-full accent-blue-600">
+                                <p class="text-xs text-slate-400 mt-1">Adjust to match targeted baseline local economic earnings.</p>
                             </div>
                             <div>
-                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Hotel Occupancy Tax (HOT) Rate:</label><span id="val-tax" class="font-bold text-blue-600">7.0%</span></div>
-                                <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-blue-600">
+                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Max Income Allocation for Housing:</label><span id="val-allocation" class="font-bold text-blue-600">30%</span></div>
+                                <input id="slider-allocation" type="range" min="15" max="50" step="1" value="30" oninput="runAffordabilitySimulation()" class="w-full accent-blue-600">
+                                <p class="text-xs text-slate-400 mt-1">30% is the federal standard boundary for a family to avoid being "rent burdened".</p>
                             </div>
                         </div>
                         <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
-                            <div class="flex justify-between items-center"><span class="text-sm font-semibold text-slate-600">Est. Total Monthly Revenue:</span><span id="calc-rev" class="text-xl font-bold text-slate-900">$0</span></div>
-                            <div class="flex justify-between items-center pt-3 border-t border-slate-200"><span class="text-sm font-semibold text-slate-600">Projected Monthly Tax Capture:</span><span id="calc-tax" class="text-xl font-bold text-emerald-600">$0</span></div>
+                            <div class="flex justify-between items-center"><span class="text-sm font-semibold text-slate-600">Affordable Monthly Rent Ceiling:</span><span id="calc-ceiling" class="text-xl font-bold text-slate-900">$0</span></div>
+                            <div class="flex justify-between items-center pt-3 border-t border-slate-200"><span class="text-sm font-semibold text-slate-600">Inventory Exceeding This Ceiling:</span><span id="calc-exceeding" class="text-xl font-bold text-red-600">0 Units</span></div>
                         </div>
                     </div>
                 </div>
@@ -191,7 +197,6 @@
             return null;
         }
 
-        // Extracts ZIP codes case-insensitively from corporate file
         function getPropertyZip(row) {
             let zKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'szip' || k.toLowerCase().trim() === 'szip5' || k.toLowerCase().trim() === 'szipcode');
             let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
@@ -199,7 +204,7 @@
             return "";
         }
 
-        // Strict validation matches case-insensitive user column requirements
+        // Strict evaluation matching user column requirements
         function checkIsMailingLocal(row) {
             let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
             let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
@@ -217,7 +222,6 @@
             return String(val).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
         }
 
-        // Extract identifiers for mapping cross-table keys relationally
         function getRowIdentificationTokens(row) {
             let tokens = new Set();
             for (let key in row) {
@@ -247,7 +251,7 @@
                         if (!pKey || !r[pKey]) return null;
                         let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
                         return isNaN(val) ? null : val;
-                    }).filter(v => v !== null);
+                    }).filter(v => v !== null && v > 0);
 
                     if (prices.length > 0) {
                         dataset.avgAdr = prices.reduce((a, b) => a + b, 0) / prices.length;
@@ -255,7 +259,7 @@
                 }
 
                 initializeMetrics();
-                runTaxSimulation();
+                runAffordabilitySimulation();
 
                 document.getElementById('loading-overlay').style.opacity = '0';
                 setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
@@ -391,7 +395,7 @@
                         weight: 0.8,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Purchase</b><br>ZIP Code: ${zip || 'Unknown'}<br>Mailing Origin: ${locality === 'local' ? 'Local Resident (El Paso, TX)' : 'Out-of-Town Investor'}`);
+                    }).bindPopup(`<b>Corporate Purchase</b><br>ZIP Code: ${zip || 'Unknown'}<br>Mailing Origin: ${locality === 'local' ? 'Local (El Paso, TX)' : 'Out-of-Town Owner'}`);
 
                     if (locality === 'local') localLayer.addLayer(marker);
                     else nonLocalLayer.addLayer(marker);
@@ -508,7 +512,7 @@
             });
         }
 
-        // FIXED ENGINE MODULE: Restores the robust dynamic auto-scaling range system
+        // FIXED ENGINE MODULE: Automatically groups long-term monthly lease metrics evenly
         function renderChartJS() {
             if (strChartInstance || dataset.str.length === 0) return;
             const ctx = document.getElementById('strChart').getContext('2d');
@@ -522,17 +526,17 @@
 
             if (validPrices.length === 0) return;
 
-            // Sort to gracefully drop top 2% layout anomalies for an even distribution profile
+            // Sort and grab standard baseline distributions to drop anomalies
             validPrices.sort((a, b) => a - b);
             let p98 = validPrices[Math.floor(validPrices.length * 0.98)] || validPrices[validPrices.length - 1];
             let chartPrices = validPrices.filter(p => p <= p98);
 
-            let minPrice = Math.floor(Math.min(...chartPrices) / 10) * 10;
-            let maxPrice = Math.ceil(Math.max(...chartPrices) / 10) * 10;
+            let minPrice = Math.floor(Math.min(...chartPrices) / 100) * 100;
+            let maxPrice = Math.ceil(Math.max(...chartPrices) / 100) * 100;
             
-            let binCount = 7;
+            let binCount = 6;
             let binSize = Math.ceil((maxPrice - minPrice) / binCount);
-            if (binSize < 10) binSize = 10; // Failsafe boundary guard
+            if (binSize < 50) binSize = 100; 
 
             let bins = Array(binCount).fill(0);
             chartPrices.forEach(p => {
@@ -544,7 +548,7 @@
             let labels = bins.map((_, i) => {
                 let start = minPrice + (i * binSize);
                 let end = minPrice + ((i + 1) * binSize);
-                return `$${start} - $${end}`;
+                return `$${start.toLocaleString()} - $${end.toLocaleString()}`;
             });
 
             strChartInstance = new Chart(ctx, {
@@ -552,7 +556,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Active Hospitality Units',
+                        label: 'Active Lease Listings',
                         data: bins,
                         backgroundColor: 'rgba(37, 99, 235, 0.7)',
                         borderColor: 'rgba(37, 99, 235, 1)',
@@ -572,19 +576,29 @@
             });
         }
 
-        function runTaxSimulation() {
-            const totalStr = dataset.str.length || 0;
-            const occRate = parseFloat(document.getElementById('slider-occ').value);
-            const taxRate = parseFloat(document.getElementById('slider-tax').value);
+        // COMPLETED RECONCILIATION MODULE: Calculates true local community rent burden benchmarks
+        function runAffordabilitySimulation() {
+            const income = parseFloat(document.getElementById('slider-income').value);
+            const allocation = parseFloat(document.getElementById('slider-allocation').value);
 
-            document.getElementById('val-occ').innerText = occRate + "%";
-            document.getElementById('val-tax').innerText = taxRate.toFixed(1) + "%";
+            document.getElementById('val-income').innerText = "$" + income.toLocaleString();
+            document.getElementById('val-allocation').innerText = allocation + "%";
 
-            const monthlyRev = totalStr * dataset.avgAdr * (occRate / 100) * 30.4;
-            const monthlyTax = monthlyRev * (taxRate / 100);
+            // Standard formula ceiling limit calculation
+            const affordableCeiling = (income / 12) * (allocation / 100);
+            
+            let exceedingCount = 0;
+            dataset.str.forEach(r => {
+                let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
+                if (!pKey || !r[pKey]) return;
+                let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
+                if (!isNaN(val) && val > affordableCeiling) {
+                    exceedingCount++;
+                }
+            });
 
-            document.getElementById('calc-rev').innerText = "$" + monthlyRev.toLocaleString('en-US', { maximumFractionDigits: 0 });
-            document.getElementById('calc-tax').innerText = "$" + monthlyTax.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            document.getElementById('calc-ceiling').innerText = "$" + affordableCeiling.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " / mo";
+            document.getElementById('calc-exceeding').innerText = exceedingCount.toLocaleString() + " Listed Units";
         }
     </script>
 </body>
