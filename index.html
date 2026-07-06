@@ -144,7 +144,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                         <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-tags text-blue-600 mr-2"></i> Nightly Pricing Breakdown</h3>
-                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings binned by price per night parameters.</p>
+                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings grouped by dynamically scaled price per night brackets.</p>
                         <div class="flex-1 relative w-full h-64"><canvas id="strChart"></canvas></div>
                     </div>
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -176,7 +176,7 @@
         let localLayer = null, nonLocalLayer = null, strConversionLayer = null;
         let strChartInstance = null;
         let corporateZipChartInstance = null;
-        let currentZipFilter = null; // Global cross-filter toggle variable
+        let currentZipFilter = null; 
 
         // Bounding Box check for El Paso coordinates
         function getElPasoCoordinates(row) {
@@ -191,7 +191,7 @@
             return null;
         }
 
-        // Extracts ZIP codes case-insensitively from the investor tracking table
+        // Extracts ZIP codes case-insensitively from corporate file
         function getPropertyZip(row) {
             let zKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'szip' || k.toLowerCase().trim() === 'szip5' || k.toLowerCase().trim() === 'szipcode');
             let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
@@ -199,7 +199,7 @@
             return "";
         }
 
-        // Strict evaluation matching user column requirements
+        // Strict validation matches case-insensitive user column requirements
         function checkIsMailingLocal(row) {
             let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
             let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
@@ -342,7 +342,6 @@
             populateMapMarkers();
         }
 
-        // REFACTORED GENERATOR ENGINE: Repopulates markers dynamically based on filter state
         function populateMapMarkers() {
             if (!leafletMap) return;
 
@@ -350,7 +349,6 @@
             nonLocalLayer.clearLayers();
             strConversionLayer.clearLayers();
 
-            // Toggle top indicator element
             const ind = document.getElementById('active-filter-indicator');
             if (currentZipFilter) {
                 ind.innerHTML = `Active Filter: ZIP ${currentZipFilter} <button onclick='clearZipFilter()' class='ml-1.5 font-bold hover:text-red-600'>&times;</button>`;
@@ -458,7 +456,6 @@
             return zipCounts;
         }
 
-        // Dynamic Chart Highlighting Sync Layer
         function updateChartColors() {
             if (!corporateZipChartInstance) return;
             let sortedZips = Object.entries(getZipCountsObject()).sort((a, b) => b[1] - a[1]);
@@ -499,8 +496,6 @@
                             const idx = elements[0].index;
                             const label = corporateZipChartInstance.data.labels[idx];
                             const zip = label.replace("ZIP ", "").trim();
-                            
-                            // Toggle selection filter state parameters
                             currentZipFilter = (currentZipFilter === zip) ? null : zip;
                             populateMapMarkers();
                         }
@@ -513,38 +508,52 @@
             });
         }
 
-        // COMPLETED UPGRADE MODULE: Strict deterministic pricing column chart
+        // FIXED ENGINE MODULE: Restores the robust dynamic auto-scaling range system
         function renderChartJS() {
             if (strChartInstance || dataset.str.length === 0) return;
             const ctx = document.getElementById('strChart').getContext('2d');
             
-            let bins = {
-                'Under $50': 0, '$50-$100': 0, '$100-$150': 0,
-                '$150-$200': 0, '$200-$250': 0, '$250-$300': 0, 'Over $300': 0
-            };
-
-            dataset.str.forEach(r => {
+            let validPrices = dataset.str.map(r => {
                 let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
-                if (!pKey || !r[pKey]) return;
+                if (!pKey || !r[pKey]) return null;
                 let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
-                if (!isNaN(val)) {
-                    if (val < 50) bins['Under $50']++;
-                    else if (val <= 100) bins['$50-$100']++;
-                    else if (val <= 150) bins['$100-$150']++;
-                    else if (val <= 200) bins['$150-$200']++;
-                    else if (val <= 250) bins['$200-$250']++;
-                    else if (val <= 300) bins['$250-$300']++;
-                    else bins['Over $300']++;
-                }
+                return isNaN(val) ? null : val;
+            }).filter(v => v !== null && v > 0);
+
+            if (validPrices.length === 0) return;
+
+            // Sort to gracefully drop top 2% layout anomalies for an even distribution profile
+            validPrices.sort((a, b) => a - b);
+            let p98 = validPrices[Math.floor(validPrices.length * 0.98)] || validPrices[validPrices.length - 1];
+            let chartPrices = validPrices.filter(p => p <= p98);
+
+            let minPrice = Math.floor(Math.min(...chartPrices) / 10) * 10;
+            let maxPrice = Math.ceil(Math.max(...chartPrices) / 10) * 10;
+            
+            let binCount = 7;
+            let binSize = Math.ceil((maxPrice - minPrice) / binCount);
+            if (binSize < 10) binSize = 10; // Failsafe boundary guard
+
+            let bins = Array(binCount).fill(0);
+            chartPrices.forEach(p => {
+                let index = Math.floor((p - minPrice) / binSize);
+                if (index >= bins.length) index = bins.length - 1;
+                if (index >= 0) bins[index]++;
+            });
+
+            let labels = bins.map((_, i) => {
+                let start = minPrice + (i * binSize);
+                let end = minPrice + ((i + 1) * binSize);
+                return `$${start} - $${end}`;
             });
 
             strChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(bins),
+                    labels: labels,
                     datasets: [{
                         label: 'Active Hospitality Units',
-                        data: Object.values(bins),
+                        data: bins,
                         backgroundColor: 'rgba(37, 99, 235, 0.7)',
                         borderColor: 'rgba(37, 99, 235, 1)',
                         borderWidth: 1,
