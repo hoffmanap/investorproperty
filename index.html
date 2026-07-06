@@ -22,15 +22,14 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
-        /* Map Layer Control Styling */
-        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 4px !important;}
+        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px !important;}
     </style>
 </head>
 <body class="text-slate-800 flex h-screen overflow-hidden antialiased">
 
     <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-500">
         <i class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-600 mb-4"></i>
-        <h2 id="loading-text" class="text-lg font-semibold text-slate-800">Loading Market Data...</h2>
+        <h2 id="loading-text" class="text-lg font-semibold text-slate-800">Normalizing Market Data Layers...</h2>
         <div id="error-message" class="hidden mt-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg max-w-lg text-center text-sm"></div>
     </div>
 
@@ -58,7 +57,6 @@
     </aside>
 
     <main class="flex-1 flex flex-col overflow-y-auto bg-slate-50">
-        
         <div class="p-8 max-w-5xl mx-auto w-full pb-20">
             
             <div id="tab-overview" class="tab-content space-y-8 animate-fade-in">
@@ -112,7 +110,7 @@
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                        <p class="text-sm text-slate-600 mt-1">Use the legend toggle in the top right to filter layers.</p>
+                        <p class="text-sm text-slate-600 mt-1">Use the checkmarks inside the floating panel to toggle datasets on and off.</p>
                     </div>
                     <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 550px;"></div>
                 </div>
@@ -144,7 +142,6 @@
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                         <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
                         <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Number of active listings binned by their nightly rate.</p>
@@ -163,7 +160,6 @@
                                     <span id="val-occ" class="font-bold text-blue-600">60%</span>
                                 </div>
                                 <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-blue-600">
-                                <p class="text-xs text-slate-400 mt-1">Percentage of days per month the average unit is booked.</p>
                             </div>
 
                             <div>
@@ -172,7 +168,6 @@
                                     <span id="val-tax" class="font-bold text-blue-600">7.0%</span>
                                 </div>
                                 <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-blue-600">
-                                <p class="text-xs text-slate-400 mt-1">The municipal tax rate applied to hospitality stays.</p>
                             </div>
                         </div>
 
@@ -198,6 +193,28 @@
         let leafletMap = null;
         let strChartInstance = null;
 
+        // HELPER SCHEMA FUNCTION: Safely Extracts Latitude/Longitude regardless of capitalization variations
+        function getCoordinates(row) {
+            let latKey = Object.keys(row).find(k => k.toLowerCase() === 'latitude' || k.toLowerCase() === 'lat');
+            let lonKey = Object.keys(row).find(k => k.toLowerCase() === 'longitude' || k.toLowerCase() === 'lon' || k.toLowerCase() === 'lng');
+            
+            if (latKey && lonKey && row[latKey] && row[lonKey]) {
+                let lat = parseFloat(String(row[latKey]).trim());
+                let lon = parseFloat(String(row[lonKey]).trim());
+                if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
+            }
+            return null;
+        }
+
+        // HELPER SCHEMA FUNCTION: Extracts State values regardless of capitalization or header prefixes
+        function getOwnerState(row) {
+            let stateKey = Object.keys(row).find(k => {
+                let lower = k.toLowerCase();
+                return lower === 'owner_state' || lower === 'state' || lower === 'owner_mailing_state' || lower.includes('state');
+            });
+            return stateKey ? String(row[stateKey]).toUpperCase().trim() : "";
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             Promise.all([
                 fetchCSV('./data/investor_buys.csv'),
@@ -205,14 +222,15 @@
                 fetchCSV('./data/local_displacement_trends.csv')
             ]).then(([investorData, strData, displacementData]) => {
                 
-                if(investorData) dataset.investor = investorData.filter(r => r.latitude && r.longitude);
+                if(investorData) dataset.investor = investorData;
                 if(displacementData) dataset.displacement = displacementData;
                 
                 if(strData && strData.length > 0) {
                     dataset.str = strData;
                     let prices = strData.map(r => {
-                        if (!r.price) return null;
-                        let val = parseFloat(String(r.price).replace(/[^0-9.]/g, ''));
+                        let priceKey = Object.keys(r).find(k => k.toLowerCase() === 'price');
+                        if (!priceKey || !r[priceKey]) return null;
+                        let val = parseFloat(String(r[priceKey]).replace(/[^0-9.]/g, ''));
                         return isNaN(val) ? null : val;
                     }).filter(v => v !== null);
 
@@ -233,7 +251,7 @@
                 document.getElementById('loading-text').classList.add('text-red-600');
                 const errBox = document.getElementById('error-message');
                 errBox.classList.remove('hidden');
-                errBox.innerHTML = `<strong>Error (404):</strong> Could not locate CSV files. Ensure that <code>investor_buys.csv</code>, <code>active_str_listings.csv</code>, and <code>local_displacement_trends.csv</code> are correctly uploaded inside the <strong>/data/</strong> folder in your repository.`;
+                errBox.innerHTML = `<strong>Error (404):</strong> Could not locate CSV files. Verify paths in repository.`;
             });
         });
 
@@ -281,74 +299,67 @@
             }
         }
 
-        // Updated Map with Layers, Legends, and Locality Checking
         function renderLeafletMap() {
             if (leafletMap) {
                 setTimeout(() => leafletMap.invalidateSize(), 50);
                 return;
             }
-            if (dataset.investor.length === 0) return;
 
             leafletMap = L.map('map-container').setView([31.7619, -106.4850], 10);
             
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-                subdomains: 'abcd',
-                maxZoom: 20
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
             }).addTo(leafletMap);
 
-            // Create Layer Groups
             let localLayer = L.layerGroup();
             let nonLocalLayer = L.layerGroup();
             let strConversionLayer = L.layerGroup();
 
-            // 1. Process Investors (Flagging Local vs Non-Local)
+            // 1. Map Corporate Buyers (Utilizing Schema Fail-safes)
             dataset.investor.forEach(d => {
-                if(d.latitude && d.longitude) {
+                let coords = getCoordinates(d);
+                if (coords) {
+                    let ownerState = getOwnerState(d);
+                    let isLocal = true;
                     
-                    // Determine if Local (Check common column names for state or type)
-                    let isLocal = true; 
-                    let ownerState = d.owner_state || d.state || d.owner_mailing_state || "";
-                    let invType = d.investor_type || "";
-                    
-                    if(ownerState && ownerState.toUpperCase().trim() !== 'TX') isLocal = false;
-                    if(invType && invType.toLowerCase().includes('out')) isLocal = false;
+                    // If state exists and isn't Texas, mark as out-of-state
+                    if (ownerState && ownerState !== 'TX') isLocal = false;
 
-                    let marker = L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
+                    let marker = L.circleMarker(coords, {
                         radius: 5,
-                        fillColor: isLocal ? "#3b82f6" : "#ef4444", // Blue for local, Red for Out-of-state
+                        fillColor: isLocal ? "#3b82f6" : "#ef4444", 
                         color: "#ffffff",
                         weight: 1,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Acquisition</b><br>Locality: ${isLocal ? 'Local (TX)' : 'Out-of-State'}`);
+                    }).bindPopup(`<b>Corporate Acquisition</b><br>Origin: ${isLocal ? 'Texas Local' : 'Out-of-State ('+ownerState+')'}`);
 
                     if (isLocal) localLayer.addLayer(marker);
                     else nonLocalLayer.addLayer(marker);
                 }
             });
 
-            // 2. Process STR Conversions 
+            // 2. Map STR Conversions (Utilizing Schema Fail-safes)
             dataset.displacement.forEach(d => {
-                if(d.latitude && d.longitude) {
-                    let marker = L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
-                        radius: 7,
-                        fillColor: "#f59e0b", // Amber/Yellow
-                        color: "#000000",
+                let coords = getCoordinates(d);
+                if (coords) {
+                    let marker = L.circleMarker(coords, {
+                        radius: 6.5,
+                        fillColor: "#f59e0b", 
+                        color: "#1e1b4b",
                         weight: 1.5,
                         opacity: 1,
                         fillOpacity: 0.9
-                    }).bindPopup(`<b>STR Conversion Match</b><br>Asset repurposed for hospitality.`);
+                    }).bindPopup(`<b>STR Conversion Match</b><br>Repurposed family residence.`);
                     strConversionLayer.addLayer(marker);
                 }
             });
 
-            // Add layers to map by default
+            // Display all by default
             localLayer.addTo(leafletMap);
             nonLocalLayer.addTo(leafletMap);
             strConversionLayer.addTo(leafletMap);
 
-            // Create Interactive Control Legend
             let overlayMaps = {
                 "<span class='text-blue-500 font-bold text-lg leading-none'>■</span> Local Corporate (TX)": localLayer,
                 "<span class='text-red-500 font-bold text-lg leading-none'>■</span> Out-of-State Corporate": nonLocalLayer,
@@ -358,13 +369,13 @@
             L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
         }
 
-        // Updated Chart Engine with Dynamic Scaling
         function renderChartJS() {
             if (strChartInstance || dataset.str.length === 0) return;
 
             let validPrices = dataset.str.map(r => {
-                if (!r.price) return null;
-                let val = parseFloat(String(r.price).replace(/[^0-9.]/g, ''));
+                let priceKey = Object.keys(r).find(k => k.toLowerCase() === 'price');
+                if (!priceKey || !r[priceKey]) return null;
+                let val = parseFloat(String(r[priceKey]).replace(/[^0-9.]/g, ''));
                 return isNaN(val) ? null : val;
             }).filter(v => v !== null);
 
@@ -372,9 +383,7 @@
             let labels = [];
             let dataBins = [];
 
-            // If we have enough data, do a dynamic price histogram
             if (validPrices.length > 5) {
-                // Remove extreme outliers (top 2%) for a cleaner chart
                 validPrices.sort((a,b) => a-b);
                 let p98 = validPrices[Math.floor(validPrices.length * 0.98)];
                 let chartPrices = validPrices.filter(p => p <= p98);
@@ -387,21 +396,20 @@
                 let bins = Array(binCount).fill(0);
                 chartPrices.forEach(p => {
                     let index = Math.floor((p - minPrice) / binSize);
-                    if (index >= bins.length) index = bins.length - 1; // Catch edge case
+                    if (index >= bins.length) index = bins.length - 1;
                     if(index >= 0) bins[index]++;
                 });
 
                 labels = bins.map((_, i) => `$${minPrice + (i * binSize)} - $${minPrice + ((i + 1) * binSize)}`);
                 dataBins = bins;
-            } 
-            // Fallback Chart: If very little price data exists, group by Zip Code instead
-            else {
+            } else {
                 document.getElementById('chart-title').innerText = "Listings by Zip Code";
-                document.getElementById('chart-subtitle').innerText = "Insufficient price data. Displaying inventory spread by ZIP.";
+                document.getElementById('chart-subtitle').innerText = "Displaying density distribution by geographic sector zip code.";
                 
                 let zipCounts = {};
                 dataset.str.forEach(row => {
-                    let zip = row.zipcode || row.zip || "Unknown";
+                    let zipKey = Object.keys(row).find(k => k.toLowerCase() === 'zipcode' || k.toLowerCase() === 'zip');
+                    let zip = zipKey ? row[zipKey] : "Unknown";
                     zipCounts[zip] = (zipCounts[zip] || 0) + 1;
                 });
                 
