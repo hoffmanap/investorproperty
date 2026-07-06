@@ -29,9 +29,9 @@
     <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
         <div class="flex items-center gap-3 mb-2">
             <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-500"></i>
-            <h2 id="loading-text" class="text-lg font-semibold">Running Cross-Reference Matching Engine...</h2>
+            <h2 id="loading-text" class="text-lg font-semibold">Aligning Multi-Table Geospatial Records...</h2>
         </div>
-        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Cross-referencing property parcels to merge missing geographic data points.</p>
+        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Cross-referencing property parcels and applying strict locality filters.</p>
         
         <div class="w-full max-w-2xl bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-2 text-slate-300 shadow-2xl">
             <div class="text-blue-400 font-bold border-b border-slate-800 pb-1 uppercase tracking-wider text-[10px]">Data Alignment Logs:</div>
@@ -179,15 +179,16 @@
             return (lat !== null && lon !== null) ? [lat, lon] : null;
         }
 
-        // CRITICAL UPDATE: Strict evaluation based on user schema mapping parameters
+        // STABILIZED LOCALITY DETECTOR: Normalizes keys to completely bypass character bugs
         function checkIsMailingLocal(row) {
-            let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
-            let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
+            let cityKey = Object.keys(row).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === 'mailcity');
+            let stateKey = Object.keys(row).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === 'mailstate2');
             
             if (cityKey && stateKey) {
                 let city = String(row[cityKey]).toLowerCase().trim();
                 let state = String(row[stateKey]).toUpperCase().trim();
-                // Condition: MUST be El Paso, TX exactly to be local. Anything else is out of town.
+                
+                // Matches exact parameters: City must be El Paso AND State must be TX
                 if (city === 'el paso' && state === 'tx') {
                     return 'local';
                 }
@@ -195,13 +196,19 @@
             return 'non-local'; 
         }
 
-        // UNIQUE ROW ID FINDER: Finds shared key to link tables relationally
-        function getRowRowKey(row) {
-            let keyCol = Object.keys(row).find(k => {
-                let l = k.toLowerCase();
-                return l === 'parcel' || l === 'id' || l === 'address' || l.includes('parcel') || l.includes('id');
-            });
-            return keyCol ? String(row[keyCol]).trim().toLowerCase() : null;
+        // EXTRACT ALL IDENTIFICATION TOKENS: Pulls identifiers from a row to generate common relational keys
+        function getRowIdentificationTokens(row) {
+            let tokens = new Set();
+            for (let key in row) {
+                let kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (kLower.includes('parcel') || kLower.includes('id') || kLower.includes('account') || kLower.includes('address') || kLower.includes('fid')) {
+                    let val = String(row[key]).trim().toLowerCase();
+                    if (val && val !== 'undefined' && val !== 'null' && val !== '') {
+                        tokens.add(val);
+                    }
+                }
+            }
+            return tokens;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -240,12 +247,14 @@
             });
         });
 
+        // Configures trimHeaders property to automatically clean fields during import step
         function fetchCSV(path, diagElementId) {
             return new Promise((resolve, reject) => {
                 Papa.parse(path, {
                     download: true,
                     header: true,
                     skipEmptyLines: true,
+                    trimHeaders: true, // Auto-strips trailing spaces out of raw data
                     complete: (results) => {
                         if(results.data && results.data.length > 0) {
                             let headers = Object.keys(results.data[0]).slice(0, 4).join(', ');
@@ -304,16 +313,16 @@
             let nonLocalLayer = L.layerGroup();
             let strConversionLayer = L.layerGroup();
 
-            // Build relational index lookup map from investor dataset
-            let investorLookupIndex = new Map();
-            dataset.investor.forEach(row => {
-                let lookupKey = getRowRowKey(row);
-                if (lookupKey) {
-                    investorLookupIndex.set(lookupKey, row);
-                }
+            // Build relational lookup map indexed by identification token string values
+            let investorLookupMap = new Map();
+            dataset.investor.forEach(investorRow => {
+                let tokens = getRowIdentificationTokens(investorRow);
+                tokens.forEach(token => {
+                    investorLookupMap.set(token, investorRow);
+                });
             });
 
-            // 1. Plot Corporate Buyers split strictly by user criteria
+            // 1. Plot Corporate Buyers split strictly by exact user columns
             dataset.investor.forEach(d => {
                 let coords = getElPasoCoordinates(d);
                 if (coords) {
@@ -321,7 +330,7 @@
                     
                     let marker = L.circleMarker(coords, {
                         radius: 4.5,
-                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue = El Paso, TX; Red = Out-of-town
+                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue = Local El Paso TX, Red = Out-of-town
                         color: "#ffffff",
                         weight: 0.8,
                         opacity: 1,
@@ -333,16 +342,19 @@
                 }
             });
 
-            // 2. Plot STR Conversions using Relational Data Matching
+            // 2. Plot STR Conversions using Token-Cross-Referencing
             dataset.displacement.forEach(d => {
                 let coords = getElPasoCoordinates(d);
                 
-                // Relational join fallback if displacement row lacks coordinates directly
+                // Relational lookup fallback if displacement row does not have coordinates explicitly written
                 if (!coords) {
-                    let conversionKey = getRowRowKey(d);
-                    if (conversionKey && investorLookupIndex.has(conversionKey)) {
-                        let matchingInvestorRow = investorLookupIndex.get(conversionKey);
-                        coords = getElPasoCoordinates(matchingInvestorRow);
+                    let dTokens = getRowIdentificationTokens(d);
+                    for (let token of dTokens) {
+                        if (investorLookupMap.has(token)) {
+                            let matchingInvestorRow = investorLookupMap.get(token);
+                            coords = getElPasoCoordinates(matchingInvestorRow);
+                            if (coords) break; 
+                        }
                     }
                 }
 
@@ -359,12 +371,12 @@
                 }
             });
 
-            // Add layers to view canvas
+            // Display all layers on initialize
             localLayer.addTo(leafletMap);
             nonLocalLayer.addTo(leafletMap);
             strConversionLayer.addTo(leafletMap);
 
-            // Assemble definitive Layer Control panel
+            // Assemble Layer Control Toggles Panel
             let overlayMaps = {
                 "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
                 "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
