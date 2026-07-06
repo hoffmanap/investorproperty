@@ -39,7 +39,6 @@
             <div id="diag-displacement">📁 local_displacement_trends.csv: <span class="text-slate-500">Reading...</span></div>
             <div id="diag-str">📁 active_str_listings.csv: <span class="text-slate-500">Reading...</span></div>
         </div>
-        <div id="error-message" class="hidden mt-4 p-4 bg-red-950/50 text-red-200 border border-red-800 rounded-lg max-w-2xl text-sm"></div>
     </div>
 
     <aside class="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
@@ -112,9 +111,17 @@
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                        <p class="text-sm text-slate-600 mt-1">Use the legend panel toggles in the top right of the map to turn layers on/off.</p>
+                        <p class="text-sm text-slate-600 mt-1">Use the legend panel toggles in the top right of the map to filter layers.</p>
                     </div>
-                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 550px;"></div>
+                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 500px;"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <h3 class="text-lg font-bold text-slate-900 mb-1">Acquisitions by Geographic Sector</h3>
+                    <p class="text-xs text-slate-500 mb-6">Total volume of investor property purchases grouped by localized ZIP Code.</p>
+                    <div class="relative w-full h-72">
+                        <canvas id="corporateZipChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -164,31 +171,29 @@
         let dataset = { investor: [], str: [], displacement: [], avgAdr: 150.0 };
         let leafletMap = null;
         let strChartInstance = null;
+        let corporateZipChartInstance = null; // Added context tracker variable
 
         // Bounding Box check for El Paso coordinates
         function getElPasoCoordinates(row) {
-            let lat = null;
-            let lon = null;
-            for (let key in row) {
-                let val = parseFloat(String(row[key]).trim());
-                if (!isNaN(val)) {
-                    if (val >= 31.3 && val <= 32.3) lat = val;
-                    if (val >= -106.9 && val <= -105.9) lon = val;
-                }
+            let latKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'latitude' || k.toLowerCase().trim() === 'lat');
+            let lonKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'longitude' || k.toLowerCase().trim() === 'lon' || k.toLowerCase().trim() === 'lng');
+            
+            if (latKey && lonKey && row[latKey] && row[lonKey]) {
+                let lat = parseFloat(row[latKey]);
+                let lon = parseFloat(row[lonKey]);
+                if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
             }
-            return (lat !== null && lon !== null) ? [lat, lon] : null;
+            return null;
         }
 
-        // STABILIZED LOCALITY DETECTOR: Normalizes keys to completely bypass character bugs
+        // Strict validation matches case-insensitive parameters
         function checkIsMailingLocal(row) {
-            let cityKey = Object.keys(row).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === 'mailcity');
-            let stateKey = Object.keys(row).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === 'mailstate2');
+            let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
+            let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
             
             if (cityKey && stateKey) {
                 let city = String(row[cityKey]).toLowerCase().trim();
-                let state = String(row[stateKey]).toUpperCase().trim();
-                
-                // Matches exact parameters: City must be El Paso AND State must be TX
+                let state = String(row[stateKey]).toLowerCase().trim();
                 if (city === 'el paso' && state === 'tx') {
                     return 'local';
                 }
@@ -196,19 +201,9 @@
             return 'non-local'; 
         }
 
-        // EXTRACT ALL IDENTIFICATION TOKENS: Pulls identifiers from a row to generate common relational keys
-        function getRowIdentificationTokens(row) {
-            let tokens = new Set();
-            for (let key in row) {
-                let kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (kLower.includes('parcel') || kLower.includes('id') || kLower.includes('account') || kLower.includes('address') || kLower.includes('fid')) {
-                    let val = String(row[key]).trim().toLowerCase();
-                    if (val && val !== 'undefined' && val !== 'null' && val !== '') {
-                        tokens.add(val);
-                    }
-                }
-            }
-            return tokens;
+        function cleanString(val) {
+            if (!val) return "";
+            return String(val).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -247,18 +242,17 @@
             });
         });
 
-        // Configures trimHeaders property to automatically clean fields during import step
         function fetchCSV(path, diagElementId) {
             return new Promise((resolve, reject) => {
                 Papa.parse(path, {
                     download: true,
                     header: true,
                     skipEmptyLines: true,
-                    trimHeaders: true, // Auto-strips trailing spaces out of raw data
+                    trimHeaders: true, 
                     complete: (results) => {
                         if(results.data && results.data.length > 0) {
                             let headers = Object.keys(results.data[0]).slice(0, 4).join(', ');
-                            document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)<br><span class='text-slate-500 pl-4'>Headers: [${headers}...]</span>`;
+                            document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)`;
                         }
                         resolve(results.data);
                     },
@@ -292,6 +286,7 @@
 
             if(tabId === 'tab-corporate') {
                 renderLeafletMap();
+                renderCorporateZipChart(); // Trigger graph compilation on view change
             } else if (tabId === 'tab-str') {
                 renderChartJS();
             }
@@ -313,16 +308,22 @@
             let nonLocalLayer = L.layerGroup();
             let strConversionLayer = L.layerGroup();
 
-            // Build relational lookup map indexed by identification token string values
-            let investorLookupMap = new Map();
-            dataset.investor.forEach(investorRow => {
-                let tokens = getRowIdentificationTokens(investorRow);
-                tokens.forEach(token => {
-                    investorLookupMap.set(token, investorRow);
+            let parcelIndex = new Map();
+            let addressIndex = new Map();
+
+            dataset.investor.forEach(row => {
+                ['parcelnumb', 'parcelnumb_no_formatting', 'alt_parcelnumb1', 'tax_id', 'geo_id', 'parcel'].forEach(key => {
+                    let cleanVal = cleanString(row[key]);
+                    if (cleanVal) parcelIndex.set(cleanVal, row);
+                });
+
+                ['address', 'original_address', 'mailadd'].forEach(key => {
+                    let cleanVal = cleanString(row[key]);
+                    if (cleanVal) addressIndex.set(cleanVal, row);
                 });
             });
 
-            // 1. Plot Corporate Buyers split strictly by exact user columns
+            // 1. Plot Investors
             dataset.investor.forEach(d => {
                 let coords = getElPasoCoordinates(d);
                 if (coords) {
@@ -330,7 +331,7 @@
                     
                     let marker = L.circleMarker(coords, {
                         radius: 4.5,
-                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", // Blue = Local El Paso TX, Red = Out-of-town
+                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", 
                         color: "#ffffff",
                         weight: 0.8,
                         opacity: 1,
@@ -342,18 +343,22 @@
                 }
             });
 
-            // 2. Plot STR Conversions using Token-Cross-Referencing
+            // 2. Plot STR Conversions Relational Match
             dataset.displacement.forEach(d => {
                 let coords = getElPasoCoordinates(d);
                 
-                // Relational lookup fallback if displacement row does not have coordinates explicitly written
                 if (!coords) {
-                    let dTokens = getRowIdentificationTokens(d);
-                    for (let token of dTokens) {
-                        if (investorLookupMap.has(token)) {
-                            let matchingInvestorRow = investorLookupMap.get(token);
-                            coords = getElPasoCoordinates(matchingInvestorRow);
-                            if (coords) break; 
+                    for (let key in d) {
+                        let val = cleanString(d[key]);
+                        if (!val || val.length <= 2) continue;
+
+                        if (parcelIndex.has(val)) {
+                            coords = getElPasoCoordinates(parcelIndex.get(val));
+                            break;
+                        }
+                        if (addressIndex.has(val)) {
+                            coords = getElPasoCoordinates(addressIndex.get(val));
+                            break;
                         }
                     }
                 }
@@ -361,7 +366,7 @@
                 if (coords) {
                     let marker = L.circleMarker(coords, {
                         radius: 6.5,
-                        fillColor: "#f59e0b", // Amber/Yellow
+                        fillColor: "#f59e0b", 
                         color: "#1e1b4b",
                         weight: 1.2,
                         opacity: 1,
@@ -371,12 +376,10 @@
                 }
             });
 
-            // Display all layers on initialize
             localLayer.addTo(leafletMap);
             nonLocalLayer.addTo(leafletMap);
             strConversionLayer.addTo(leafletMap);
 
-            // Assemble Layer Control Toggles Panel
             let overlayMaps = {
                 "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
                 "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
@@ -384,6 +387,54 @@
             };
 
             L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
+        }
+
+        // ADDED GRAPH NODE: Computes and aggregates corporate acquisition counts by property ZIP
+        function renderCorporateZipChart() {
+            if (corporateZipChartInstance || dataset.investor.length === 0) return;
+            const ctx = document.getElementById('corporateZipChart').getContext('2d');
+            
+            let zipCounts = {};
+            dataset.investor.forEach(row => {
+                // Find column names indicating location zip codes explicitly (szip or szip5 from snippet)
+                let zKey = Object.keys(row).find(k => k.toLowerCase() === 'szip' || k.toLowerCase() === 'szip5' || k.toLowerCase() === 'szipcode');
+                let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
+                
+                // Exclude empty string allocations or out-of-bounds keys
+                if(zip && zip.length >= 5) {
+                    let zipShort = zip.substring(0, 5); // Cleans any hyphen extended variants
+                    zipCounts[zipShort] = (zipCounts[zipShort] || 0) + 1;
+                }
+            });
+
+            // Sort Zip Codes descending based on frequency volume profiles
+            let sortedZips = Object.entries(zipCounts).sort((a, b) => b[1] - a[1]);
+            let labels = sortedZips.map(item => `ZIP ${item[0]}`);
+            let counts = sortedZips.map(item => item[1]);
+
+            corporateZipChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Acquisitions Mapped',
+                        data: counts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.75)', // Deep blue layout variant accent
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
         }
 
         function renderChartJS() {
