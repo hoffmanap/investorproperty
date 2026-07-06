@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>El Paso Housing Market Dynamics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 flex h-screen overflow-hidden">
+
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white transition-opacity duration-300">
+        <div class="animate-spin rounded-full h-16 w-16 border-4 border-indigo-500 border-t-transparent mb-4"></div>
+        <p class="text-lg font-medium tracking-wide">Syncing El Paso Market Data Layers...</p>
+    </div>
+
+    <aside class="w-72 bg-slate-900 text-slate-300 flex flex-col justify-between shadow-xl shrink-0">
+        <div>
+            <div class="p-6 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🏠</span>
+                    <h1 class="text-lg font-bold text-white tracking-tight leading-tight">El Paso Market Dynamics</h1>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">Institutional Real Estate Tracker</p>
+            </div>
+            
+            <nav class="p-4 space-y-2">
+                <button onclick="switchView('corporate')" id="btn-corporate" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all bg-indigo-600 text-white shadow-xs">
+                    <i class="fa-solid fa-chart-pie text-base"></i>
+                    Corporate Ownership
+                </button>
+                <button onclick="switchView('str')" id="btn-str" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all hover:bg-slate-800 text-slate-400 hover:text-slate-200">
+                    <i class="fa-solid fa-hotel text-base"></i>
+                    STR 'Scattered Hotel' Analysis
+                </button>
+            </nav>
+        </div>
+        
+        <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
+            Data Context Year: 2026
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-y-auto">
+        
+        <header class="bg-white border-b border-slate-200 px-8 py-5 flex items-center justify-between shadow-xs shrink-0">
+            <div>
+                <h2 id="view-title" class="text-2xl font-bold text-slate-900">Corporate Acquisitions & Conversion Pipelines</h2>
+                <p id="view-subtitle" class="text-sm text-slate-500 mt-0.5">Monitoring corporate acquisitions and short-term rental market metrics across El Paso, Texas.</p>
+            </div>
+            <div id="error-banner" class="hidden bg-rose-50 border border-rose-200 text-rose-700 px-4 py-2 rounded-lg text-xs flex items-center gap-2">
+                <i class="fa-solid fa-circle-exclamation text-rose-500"></i>
+                <span>Repository configuration mismatch detected. Check CSV locations.</span>
+            </div>
+        </header>
+
+        <div class="p-8 max-w-7xl w-full mx-auto space-y-8">
+            
+            <section id="view-corporate" class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Corporate Purchases</p>
+                        <h3 id="kpi-buys" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
+                        <p class="text-xs text-slate-500 mt-1">Properties mapped this cycle</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">STR Conversion Matches</p>
+                        <h3 id="kpi-conv" class="text-3xl font-bold text-indigo-600 mt-2">--</h3>
+                        <p class="text-xs text-slate-500 mt-1">Identified across portfolios</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Observed Conversion Pace</p>
+                        <h3 id="kpi-pace" class="text-3xl font-bold text-emerald-600 mt-2">--</h3>
+                        <p class="text-xs text-slate-500 mt-1">Pipeline match density</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                    <h4 class="text-lg font-bold text-slate-900">Geospatial Distribution of Corporate Assets</h4>
+                    <div id="map-corporate" class="w-full bg-slate-100 rounded-lg overflow-hidden" style="height: 520px;"></div>
+                </div>
+            </section>
+
+            <section id="view-str" class="space-y-8 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Active Monitored Vacation Rentals</p>
+                        <h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
+                        <p class="text-xs text-slate-500 mt-1">Unique single-family units</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Observed Market Average Daily Rate</p>
+                        <h3 id="kpi-str-adr" class="text-3xl font-bold text-indigo-600 mt-2">--</h3>
+                        <p class="text-xs text-slate-500 mt-1">Regional baseline calculation</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <div class="lg:col-span-5 bg-white p-6 rounded-xl border border-slate-200 shadow-xs flex flex-col justify-between">
+                        <div>
+                            <h4 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-sliders text-indigo-500"></i>
+                                Municipal Fee & Tax Capture Simulator
+                            </h4>
+                            <p class="text-xs text-slate-400 mt-1 mb-6">Model baseline fiscal impacts using real-time inventory figures.</p>
+                            
+                            <div class="space-y-2 mb-6">
+                                <div class="flex justify-between text-sm font-medium">
+                                    <label for="slider-occ" class="text-slate-700">Assumed Occupancy Density Factor:</label>
+                                    <span id="val-occ" class="text-indigo-600 font-semibold">60%</span>
+                                </div>
+                                <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
+
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm font-medium">
+                                    <label for="slider-tax" class="text-slate-700">Simulated Tax (HOT) Rate:</label>
+                                    <span id="val-tax" class="text-indigo-600 font-semibold">7.0%</span>
+                                </div>
+                                <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-indigo-600 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                            </div>
+                        </div>
+
+                        <div class="mt-8 pt-6 border-t border-slate-100 space-y-4 bg-slate-50/70 p-4 rounded-xl">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estimated Total Monthly Market Revenue</p>
+                                <p id="calc-rev" class="text-2xl font-bold text-slate-900 mt-0.5">$0.00</p>
+                            </div>
+                            <div>
+                                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projected Monthly Tax Capture Potential</p>
+                                <p id="calc-tax" class="text-2xl font-bold text-emerald-600 mt-0.5">$0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-7 bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+                        <h4 class="text-lg font-bold text-slate-900 mb-1">Market Density & Pricing Spread</h4>
+                        <p class="text-xs text-slate-400 mb-4">Histogram analysis indicating listing volume variations over price bands.</p>
+                        <div id="chart-str-dist" class="w-full" style="height: 340px;"></div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // Data Store Objects
+        let dataset = {
+            investor: [],
+            str: [],
+            displacement: [],
+            avgAdr: 150.0
+        };
+
+        // Execution Gate: Load datasets concurrently
+        document.addEventListener("DOMContentLoaded", () => {
+            Promise.all([
+                fetchCSV('data/investor_buys.csv'),
+                fetchCSV('data/active_str_listings.csv'),
+                fetchCSV('data/local_displacement_trends.csv')
+            ]).then(([investorData, strData, displacementData]) => {
+                
+                // Process Corporate Investment Layer
+                if(investorData && investorData.length > 0) {
+                    dataset.investor = investorData.filter(row => row.latitude && row.longitude && !isNaN(parseFloat(row.latitude)) && !isNaN(parseFloat(row.longitude)));
+                }
+                
+                // Process Displacement Pipeline Track Layer
+                if(displacementData) dataset.displacement = displacementData;
+
+                // Process STR Data Layer & Clean Formats
+                if(strData && strData.length > 0) {
+                    dataset.str = strData;
+                    
+                    // Parse values safely preserving string stripping fallback
+                    let parsedPrices = strData.map(row => {
+                        if (!row.price) return null;
+                        let cleanStr = String(row.price).replace(/[^0-9.]/g, '');
+                        let val = parseFloat(cleanStr);
+                        return isNaN(val) ? null : val;
+                    }).filter(v => v !== null);
+
+                    if (parsedPrices.length > 0) {
+                        let sum = parsedPrices.reduce((a, b) => a + b, 0);
+                        dataset.avgAdr = sum / parsedPrices.length;
+                    }
+                }
+
+                // Hydrate Global Visual Element Components
+                initializeDashboardMetrics();
+                renderInvestorMap();
+                renderSTRDistributionChart();
+                runTaxSimulation();
+
+                // Clear loading wall interface smoothly
+                const loader = document.getElementById('loading-overlay');
+                loader.classList.add('opacity-0');
+                setTimeout(() => loader.remove(), 300);
+
+            }).catch(err => {
+                console.error("Dashboard Engine Load Failure:", err);
+                document.getElementById('error-banner').classList.remove('hidden');
+                document.getElementById('loading-overlay').remove();
+            });
+        });
+
+        // Wrapper Promise implementation around standard PapaParse Fetch API instances
+        function fetchCSV(path) {
+            return new Promise((resolve, reject) => {
+                Papa.parse(path, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => resolve(results.data),
+                    error: (error) => reject(error)
+                });
+            });
+        }
+
+        // Context Initializer for standard DOM KPIs Metrics Elements
+        function initializeDashboardMetrics() {
+            const totalBuys = dataset.investor.length;
+            const totalConv = dataset.displacement.length;
+            const convPace = totalBuys > 0 ? ((totalConv / totalBuys) * 100).toFixed(1) : "0.0";
+
+            document.getElementById('kpi-buys').innerText = totalBuys.toLocaleString() + " Properties";
+            document.getElementById('kpi-conv').innerText = totalConv.toLocaleString() + " Units";
+            document.getElementById('kpi-pace').innerText = convPace + "%";
+
+            document.getElementById('kpi-str-count').innerText = dataset.str.length.toLocaleString() + " Units";
+            document.getElementById('kpi-str-adr').innerText = "$" + dataset.avgAdr.toFixed(2);
+        }
+
+        // View Toggling Controls Integration
+        function switchView(viewId) {
+            const corpView = document.getElementById('view-corporate');
+            const strView = document.getElementById('view-str');
+            const btnCorp = document.getElementById('btn-corporate');
+            const btnStr = document.getElementById('btn-str');
+            const title = document.getElementById('view-title');
+
+            const activeClass = ["bg-indigo-600", "text-white", "shadow-xs"];
+            const inactiveClass = ["hover:bg-slate-800", "text-slate-400", "hover:text-slate-200"];
+
+            if (viewId === 'corporate') {
+                corpView.classList.remove('hidden');
+                strView.classList.add('hidden');
+                btnCorp.classList.add(...activeClass);
+                btnCorp.classList.remove(...inactiveClass);
+                btnStr.classList.remove(...activeClass);
+                btnStr.classList.add(...inactiveClass);
+                title.innerText = "Corporate Acquisitions & Conversion Pipelines";
+                // Trigger resizing adjustments to prevent canvas dimensions clipping bugs
+                Plotly.Plots.resize('map-corporate');
+            } else {
+                corpView.classList.add('hidden');
+                strView.classList.remove('hidden');
+                btnStr.classList.add(...activeClass);
+                btnStr.classList.remove(...inactiveClass);
+                btnCorp.classList.remove(...activeClass);
+                btnCorp.classList.add(...inactiveClass);
+                title.innerText = "Decentralized Hospitality Unit Sizing Analysis";
+                Plotly.Plots.resize('chart-str-dist');
+            }
+        }
+
+        // Plotly Corporate Map Engine Context
+        function renderInvestorMap() {
+            if (dataset.investor.length === 0) return;
+
+            const lats = dataset.investor.map(d => parseFloat(d.latitude));
+            const lons = dataset.investor.map(d => parseFloat(d.longitude));
+
+            const trace = {
+                type: "scattermapbox",
+                lat: lats,
+                lon: lons,
+                mode: "markers",
+                marker: {
+                    size: 8,
+                    color: "#4f46e5",
+                    opacity: 0.7
+                },
+                text: dataset.investor.map(d => `Corporate Property Asset Allocation`)
+            };
+
+            const layout = {
+                mapbox: {
+                    style: "open-street-map",
+                    center: { lat: 31.7619, lon: -106.4850 }, // Central El Paso Coordinates
+                    zoom: 10
+                },
+                margin: { r: 0, t: 0, l: 0, b: 0 },
+                showlegend: false
+            };
+
+            const config = { responsive: true, displayModeBar: false };
+            Plotly.newPlot('map-corporate', [trace], layout, config);
+        }
+
+        // New Added Component Chart Visualization Feature logic implementation
+        function renderSTRDistributionChart() {
+            if (dataset.str.length === 0) return;
+
+            let prices = dataset.str.map(row => {
+                if (!row.price) return null;
+                let val = parseFloat(String(row.price).replace(/[^0-9.]/g, ''));
+                return isNaN(val) ? null : val;
+            }).filter(v => v !== null && v < 600); // Caps outliers to keep chart useful
+
+            const trace = {
+                x: prices,
+                type: 'histogram',
+                autobinx: true,
+                marker: {
+                    color: 'rgba(79, 70, 229, 0.7)',
+                    line: { color: 'rgba(79, 70, 229, 1)', width: 1 }
+                }
+            };
+
+            const layout = {
+                margin: { l: 40, r: 20, t: 10, b: 40 },
+                xaxis: { title: "Nightly Rate ($)", gridcolor: "#f1f5f9" },
+                yaxis: { title: "Active Listings Count", gridcolor: "#f1f5f9" },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                bargap: 0.05
+            };
+
+            Plotly.newPlot('chart-str-dist', [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        // Reactive Policy Fee Calculation Simulator Engine Execution
+        function runTaxSimulation() {
+            const totalStr = dataset.str.length || 0;
+            const occRate = parseFloat(document.getElementById('slider-occ').value);
+            const taxRate = parseFloat(document.getElementById('slider-tax').value);
+
+            // Synchronize control labels visually
+            document.getElementById('val-occ').innerText = occRate + "%";
+            document.getElementById('val-tax').innerText = taxRate.toFixed(1) + "%";
+
+            // Math execution mapping from original script definitions 
+            const monthlyRev = totalStr * dataset.avgAdr * (occRate / 100) * 30.4;
+            const monthlyTax = monthlyRev * (taxRate / 100);
+
+            // Render back to DOM
+            document.getElementById('calc-rev').innerText = "$" + monthlyRev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('calc-tax').innerText = "$" + monthlyTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    </script>
+</body>
+</html>
