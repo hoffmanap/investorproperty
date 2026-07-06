@@ -16,21 +16,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
-        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 6px !important;}
+        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 6px !important;}
     </style>
 </head>
 <body class="text-slate-800 flex h-screen overflow-hidden antialiased">
 
-    <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-500">
-        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-600 mb-4"></i>
-        <h2 id="loading-text" class="text-lg font-semibold text-slate-800">Normalizing Market Data Layers...</h2>
-        <div id="error-message" class="hidden mt-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg max-w-lg text-center text-sm"></div>
+    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
+        <div class="flex items-center gap-3 mb-2">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-500"></i>
+            <h2 id="loading-text" class="text-lg font-semibold">Running El Paso Geo-Scanner Engine...</h2>
+        </div>
+        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Scanning columns for coordinate arrays matching El Paso geographic boundaries.</p>
+        
+        <div class="w-full max-w-2xl bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-2 text-slate-300 shadow-2xl">
+            <div class="text-blue-400 font-bold border-b border-slate-800 pb-1 uppercase tracking-wider text-[10px]">Spreadsheet Headers Detected:</div>
+            <div id="diag-investor">📁 investor_buys.csv: <span class="text-slate-500">Reading...</span></div>
+            <div id="diag-displacement">📁 local_displacement_trends.csv: <span class="text-slate-500">Reading...</span></div>
+            <div id="diag-str">📁 active_str_listings.csv: <span class="text-slate-500">Reading...</span></div>
+        </div>
+        <div id="error-message" class="hidden mt-4 p-4 bg-red-950/50 text-red-200 border border-red-800 rounded-lg max-w-2xl text-sm"></div>
     </div>
 
     <aside class="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
@@ -50,24 +59,17 @@
                 <i class="fa-solid fa-house-chimney-user w-5 text-center"></i> STR Economic Impact
             </button>
         </nav>
-        
-        <div class="p-4 border-t border-slate-100 text-xs text-slate-400 text-center">
-            Last Updated: Automated Sync
-        </div>
     </aside>
 
     <main class="flex-1 flex flex-col overflow-y-auto bg-slate-50">
         <div class="p-8 max-w-5xl mx-auto w-full pb-20">
             
-            <div id="tab-overview" class="tab-content space-y-8 animate-fade-in">
+            <div id="tab-overview" class="tab-content space-y-8">
                 <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                     <h2 class="text-3xl font-bold text-slate-900 mb-4">Tracking the Financialization of Housing in El Paso</h2>
                     <div class="prose max-w-none text-slate-600 space-y-4">
                         <p class="leading-relaxed">
                             This project serves as an analytical framework tracking structural changes within the residential housing market of El Paso, Texas. By synchronizing municipal data and market listings, this interface maps real-time trends where traditional owner-occupied homes are transitioned into centralized financial assets.
-                        </p>
-                        <p class="leading-relaxed">
-                            <strong>Why does this matter?</strong> As private equity investment, institutional syndicates, and short-term vacation rentals scale, local market metrics register shifts in neighborhood density, potential tenant displacement, and abnormal pricing pressure.
                         </p>
                     </div>
                 </div>
@@ -86,7 +88,7 @@
                 </div>
             </div>
 
-            <div id="tab-corporate" class="tab-content hidden space-y-8 animate-fade-in">
+            <div id="tab-corporate" class="tab-content hidden space-y-8">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-900">Corporate Ownership & Acquisitions</h2>
                     <p class="text-slate-600 mt-2">Visualizing real estate captured by institutional syndicates.</p>
@@ -110,76 +112,46 @@
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                        <p class="text-sm text-slate-600 mt-1">Use the checkmarks inside the floating panel to toggle datasets on and off.</p>
+                        <p class="text-sm text-slate-600 mt-1">Use the legend panel toggles in the top right of the map to turn layers on/off.</p>
                     </div>
                     <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 550px;"></div>
                 </div>
             </div>
 
-            <div id="tab-str" class="tab-content hidden space-y-8 animate-fade-in">
+            <div id="tab-str" class="tab-content hidden space-y-8">
                 <div>
                     <h2 class="text-2xl font-bold text-slate-900">STR "Scattered Hotel" Economic Impact</h2>
                     <p class="text-slate-600 mt-2">Evaluating the financial footprint of decentralized vacation rentals.</p>
                 </div>
-
                 <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
                     <h3 class="text-lg font-bold text-blue-900 mb-2">What is the "Scattered Hotel" effect?</h3>
-                    <p class="text-sm text-blue-800 leading-relaxed">
-                        When investors acquire homes to use exclusively as Short-Term Rentals (STRs) on platforms like Airbnb, they create a network of "scattered hotels" across residential neighborhoods. Unlike traditional hotels, these properties often bypass municipal <strong>Hotel Occupancy Taxes (HOT)</strong>. 
-                        The simulator below takes current market data to calculate potential municipal tax revenue that is either uncollected or could be captured through enforcement.
-                    </p>
+                    <p class="text-sm text-blue-800 leading-relaxed">When investors acquire homes to use exclusively as Short-Term Rentals, they create a network of "scattered hotels" across residential neighborhoods.</p>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Vacation Rentals</p>
-                        <h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Market Average Daily Rate</p>
-                        <h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
-                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Vacation Rentals</p><h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Market Average Daily Rate</p><h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
                 </div>
-
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
                         <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
-                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Number of active listings binned by their nightly rate.</p>
-                        <div class="flex-1 relative w-full h-64">
-                            <canvas id="strChart"></canvas>
-                        </div>
+                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active listings binned by nightly rate.</p>
+                        <div class="flex-1 relative w-full h-64"><canvas id="strChart"></canvas></div>
                     </div>
-
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-calculator text-blue-600 mr-2"></i> Municipal Tax Simulator</h3>
-                        
                         <div class="space-y-6">
                             <div>
-                                <div class="flex justify-between text-sm mb-2">
-                                    <label class="font-medium text-slate-700">Assumed Average Occupancy:</label>
-                                    <span id="val-occ" class="font-bold text-blue-600">60%</span>
-                                </div>
+                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Assumed Average Occupancy:</label><span id="val-occ" class="font-bold text-blue-600">60%</span></div>
                                 <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-blue-600">
                             </div>
-
                             <div>
-                                <div class="flex justify-between text-sm mb-2">
-                                    <label class="font-medium text-slate-700">Hotel Occupancy Tax (HOT) Rate:</label>
-                                    <span id="val-tax" class="font-bold text-blue-600">7.0%</span>
-                                </div>
+                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Hotel Occupancy Tax (HOT) Rate:</label><span id="val-tax" class="font-bold text-blue-600">7.0%</span></div>
                                 <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-blue-600">
                             </div>
                         </div>
-
                         <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
-                            <div class="flex justify-between items-center">
-                                <span class="text-sm font-semibold text-slate-600">Est. Total Monthly Revenue:</span>
-                                <span id="calc-rev" class="text-xl font-bold text-slate-900">$0</span>
-                            </div>
-                            <div class="flex justify-between items-center pt-3 border-t border-slate-200">
-                                <span class="text-sm font-semibold text-slate-600">Projected Monthly Tax Capture:</span>
-                                <span id="calc-tax" class="text-xl font-bold text-emerald-600">$0</span>
-                            </div>
+                            <div class="flex justify-between items-center"><span class="text-sm font-semibold text-slate-600">Est. Total Monthly Revenue:</span><span id="calc-rev" class="text-xl font-bold text-slate-900">$0</span></div>
+                            <div class="flex justify-between items-center pt-3 border-t border-slate-200"><span class="text-sm font-semibold text-slate-600">Projected Monthly Tax Capture:</span><span id="calc-tax" class="text-xl font-bold text-emerald-600">$0</span></div>
                         </div>
                     </div>
                 </div>
@@ -193,33 +165,46 @@
         let leafletMap = null;
         let strChartInstance = null;
 
-        // HELPER SCHEMA FUNCTION: Safely Extracts Latitude/Longitude regardless of capitalization variations
-        function getCoordinates(row) {
-            let latKey = Object.keys(row).find(k => k.toLowerCase() === 'latitude' || k.toLowerCase() === 'lat');
-            let lonKey = Object.keys(row).find(k => k.toLowerCase() === 'longitude' || k.toLowerCase() === 'lon' || k.toLowerCase() === 'lng');
+        // ADVANCED GEO-SCANNER: Scans every key in a row for El Paso bounding box values
+        function scanRowForElPasoCoordinates(row) {
+            let lat = null;
+            let lon = null;
             
-            if (latKey && lonKey && row[latKey] && row[lonKey]) {
-                let lat = parseFloat(String(row[latKey]).trim());
-                let lon = parseFloat(String(row[lonKey]).trim());
-                if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
+            for (let key in row) {
+                let val = parseFloat(String(row[key]).trim());
+                if (!isNaN(val)) {
+                    // El Paso Latitudes fall strictly between 31.3 and 32.3
+                    if (val >= 31.3 && val <= 32.3) lat = val;
+                    // El Paso Longitudes fall strictly between -106.9 and -105.9
+                    if (val >= -106.9 && val <= -105.9) lon = val;
+                }
             }
-            return null;
+            return (lat !== null && lon !== null) ? [lat, lon] : null;
         }
 
-        // HELPER SCHEMA FUNCTION: Extracts State values regardless of capitalization or header prefixes
-        function getOwnerState(row) {
-            let stateKey = Object.keys(row).find(k => {
-                let lower = k.toLowerCase();
-                return lower === 'owner_state' || lower === 'state' || lower === 'owner_mailing_state' || lower.includes('state');
-            });
-            return stateKey ? String(row[stateKey]).toUpperCase().trim() : "";
+        // SMART LOCALITY DETECTOR: Searches for state keys or columns marking out-of-town flags
+        function scanRowForLocality(row) {
+            let stateKey = Object.keys(row).find(k => k.toLowerCase().includes('state') || k.toLowerCase() === 'st');
+            if (stateKey && row[stateKey]) {
+                let stateCode = String(row[stateKey]).toUpperCase().trim();
+                if (stateCode.length === 2) return stateCode === 'TX' ? 'local' : 'non-local';
+            }
+            
+            // Text-search fallback
+            for (let key in row) {
+                let text = String(row[key]).toLowerCase();
+                if (text.includes('out-of-state') || text.includes('non-local') || text.includes('out of town')) {
+                    return 'non-local';
+                }
+            }
+            return 'unspecified';
         }
 
         document.addEventListener("DOMContentLoaded", () => {
             Promise.all([
-                fetchCSV('./data/investor_buys.csv'),
-                fetchCSV('./data/active_str_listings.csv'),
-                fetchCSV('./data/local_displacement_trends.csv')
+                fetchCSV('./data/investor_buys.csv', 'diag-investor'),
+                fetchCSV('./data/active_str_listings.csv', 'diag-str'),
+                fetchCSV('./data/local_displacement_trends.csv', 'diag-displacement')
             ]).then(([investorData, strData, displacementData]) => {
                 
                 if(investorData) dataset.investor = investorData;
@@ -228,9 +213,9 @@
                 if(strData && strData.length > 0) {
                     dataset.str = strData;
                     let prices = strData.map(r => {
-                        let priceKey = Object.keys(r).find(k => k.toLowerCase() === 'price');
-                        if (!priceKey || !r[priceKey]) return null;
-                        let val = parseFloat(String(r[priceKey]).replace(/[^0-9.]/g, ''));
+                        let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
+                        if (!pKey || !r[pKey]) return null;
+                        let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
                         return isNaN(val) ? null : val;
                     }).filter(v => v !== null);
 
@@ -242,27 +227,36 @@
                 initializeMetrics();
                 runTaxSimulation();
 
+                // Clear loading wall interface smoothly
                 document.getElementById('loading-overlay').style.opacity = '0';
                 setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
 
             }).catch(err => {
                 console.error(err);
-                document.getElementById('loading-text').innerText = "Data Synchronization Failed";
-                document.getElementById('loading-text').classList.add('text-red-600');
+                document.getElementById('loading-text').innerText = "Sync / Location Halt";
                 const errBox = document.getElementById('error-message');
                 errBox.classList.remove('hidden');
-                errBox.innerHTML = `<strong>Error (404):</strong> Could not locate CSV files. Verify paths in repository.`;
+                errBox.innerHTML = `<strong>Data Verification Error:</strong> Unable to pull local files. Double-check that your csv tables are properly saved in the <code>/data/</code> repository folder.`;
             });
         });
 
-        function fetchCSV(path) {
+        function fetchCSV(path, diagElementId) {
             return new Promise((resolve, reject) => {
                 Papa.parse(path, {
                     download: true,
                     header: true,
                     skipEmptyLines: true,
-                    complete: (results) => resolve(results.data),
-                    error: (error) => reject(error)
+                    complete: (results) => {
+                        if(results.data && results.data.length > 0) {
+                            let headers = Object.keys(results.data[0]).slice(0, 5).join(', ');
+                            document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)<br><span class='text-slate-500 pl-4'>Headers: [${headers}...]</span>`;
+                        }
+                        resolve(results.data);
+                    },
+                    error: (error) => {
+                        document.getElementById(diagElementId).innerHTML = `❌ ${path.split('/').pop()} - File Not Found (404)`;
+                        reject(error);
+                    }
                 });
             });
         }
@@ -282,15 +276,10 @@
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.nav-btn').forEach(el => {
-                el.classList.remove('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
-                el.classList.add('text-slate-600');
-            });
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             
             document.getElementById(tabId).classList.remove('hidden');
-            const activeBtn = document.getElementById('btn-' + tabId);
-            activeBtn.classList.add('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
-            activeBtn.classList.remove('text-slate-600');
+            document.getElementById('btn-' + tabId).classList.add('active');
 
             if(tabId === 'tab-corporate') {
                 renderLeafletMap();
@@ -313,38 +302,43 @@
 
             let localLayer = L.layerGroup();
             let nonLocalLayer = L.layerGroup();
+            let unifiedLayer = L.layerGroup(); // Fallback if no state data found
             let strConversionLayer = L.layerGroup();
 
-            // 1. Map Corporate Buyers (Utilizing Schema Fail-safes)
-            dataset.investor.forEach(d => {
-                let coords = getCoordinates(d);
-                if (coords) {
-                    let ownerState = getOwnerState(d);
-                    let isLocal = true;
-                    
-                    // If state exists and isn't Texas, mark as out-of-state
-                    if (ownerState && ownerState !== 'TX') isLocal = false;
+            let hasOutofStateData = false;
 
+            // 1. Plot Corporate Buyers via Geo-Scanner
+            dataset.investor.forEach(d => {
+                let coords = scanRowForElPasoCoordinates(d);
+                if (coords) {
+                    let locality = scanRowForLocality(d);
+                    
                     let marker = L.circleMarker(coords, {
                         radius: 5,
-                        fillColor: isLocal ? "#3b82f6" : "#ef4444", 
+                        fillColor: locality === 'non-local' ? "#ef4444" : "#3b82f6", 
                         color: "#ffffff",
                         weight: 1,
                         opacity: 1,
                         fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Acquisition</b><br>Origin: ${isLocal ? 'Texas Local' : 'Out-of-State ('+ownerState+')'}`);
+                    }).bindPopup(`<b>Corporate Asset</b><br>Classification: ${locality === 'non-local' ? 'Out-of-State Owner' : 'Texas Registered'}`);
 
-                    if (isLocal) localLayer.addLayer(marker);
-                    else nonLocalLayer.addLayer(marker);
+                    if (locality === 'non-local') {
+                        nonLocalLayer.addLayer(marker);
+                        hasOutofStateData = true;
+                    } else {
+                        localLayer.addLayer(marker);
+                    }
+                    unifiedLayer.addLayer(marker);
                 }
             });
 
-            // 2. Map STR Conversions (Utilizing Schema Fail-safes)
+            // 2. Plot STR Conversions via Geo-Scanner
+            let mappedConversionsCount = 0;
             dataset.displacement.forEach(d => {
-                let coords = getCoordinates(d);
+                let coords = scanRowForElPasoCoordinates(d);
                 if (coords) {
                     let marker = L.circleMarker(coords, {
-                        radius: 6.5,
+                        radius: 7,
                         fillColor: "#f59e0b", 
                         color: "#1e1b4b",
                         weight: 1.5,
@@ -352,78 +346,50 @@
                         fillOpacity: 0.9
                     }).bindPopup(`<b>STR Conversion Match</b><br>Repurposed family residence.`);
                     strConversionLayer.addLayer(marker);
+                    mappedConversionsCount++;
                 }
             });
 
-            // Display all by default
-            localLayer.addTo(leafletMap);
-            nonLocalLayer.addTo(leafletMap);
-            strConversionLayer.addTo(leafletMap);
+            console.log(`Successfully mapped ${mappedConversionsCount} conversion markers via range scanner.`);
 
-            let overlayMaps = {
-                "<span class='text-blue-500 font-bold text-lg leading-none'>■</span> Local Corporate (TX)": localLayer,
-                "<span class='text-red-500 font-bold text-lg leading-none'>■</span> Out-of-State Corporate": nonLocalLayer,
-                "<span class='text-amber-500 font-bold text-lg leading-none'>●</span> STR Conversions": strConversionLayer
-            };
+            // Dynamic Layer Control Legend Assembly
+            let overlayMaps = {};
+            
+            if (hasOutofStateData) {
+                localLayer.addTo(leafletMap);
+                nonLocalLayer.addTo(leafletMap);
+                overlayMaps["<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (TX)"] = localLayer;
+                overlayMaps["<span class='text-red-500 font-bold text-lg'>■</span> Out-of-State Corporate"] = nonLocalLayer;
+            } else {
+                unifiedLayer.addTo(leafletMap);
+                overlayMaps["<span class='text-blue-500 font-bold text-lg'>■</span> Corporate Purchases"] = unifiedLayer;
+            }
+
+            // Always add conversions layer to the map and legend panel
+            strConversionLayer.addTo(leafletMap);
+            overlayMaps["<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions Matches"] = strConversionLayer;
 
             L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
         }
 
         function renderChartJS() {
             if (strChartInstance || dataset.str.length === 0) return;
-
-            let validPrices = dataset.str.map(r => {
-                let priceKey = Object.keys(r).find(k => k.toLowerCase() === 'price');
-                if (!priceKey || !r[priceKey]) return null;
-                let val = parseFloat(String(r[priceKey]).replace(/[^0-9.]/g, ''));
-                return isNaN(val) ? null : val;
-            }).filter(v => v !== null);
-
             const ctx = document.getElementById('strChart').getContext('2d');
-            let labels = [];
-            let dataBins = [];
-
-            if (validPrices.length > 5) {
-                validPrices.sort((a,b) => a-b);
-                let p98 = validPrices[Math.floor(validPrices.length * 0.98)];
-                let chartPrices = validPrices.filter(p => p <= p98);
-
-                let minPrice = Math.floor(Math.min(...chartPrices) / 10) * 10;
-                let maxPrice = Math.ceil(Math.max(...chartPrices) / 10) * 10;
-                let binCount = 10;
-                let binSize = Math.max(10, Math.ceil((maxPrice - minPrice) / binCount));
-
-                let bins = Array(binCount).fill(0);
-                chartPrices.forEach(p => {
-                    let index = Math.floor((p - minPrice) / binSize);
-                    if (index >= bins.length) index = bins.length - 1;
-                    if(index >= 0) bins[index]++;
-                });
-
-                labels = bins.map((_, i) => `$${minPrice + (i * binSize)} - $${minPrice + ((i + 1) * binSize)}`);
-                dataBins = bins;
-            } else {
-                document.getElementById('chart-title').innerText = "Listings by Zip Code";
-                document.getElementById('chart-subtitle').innerText = "Displaying density distribution by geographic sector zip code.";
-                
-                let zipCounts = {};
-                dataset.str.forEach(row => {
-                    let zipKey = Object.keys(row).find(k => k.toLowerCase() === 'zipcode' || k.toLowerCase() === 'zip');
-                    let zip = zipKey ? row[zipKey] : "Unknown";
-                    zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-                });
-                
-                labels = Object.keys(zipCounts);
-                dataBins = Object.values(zipCounts);
-            }
-
+            
+            let zipCounts = {};
+            dataset.str.forEach(row => {
+                let zKey = Object.keys(row).find(k => k.toLowerCase().includes('zip'));
+                let zip = zKey ? row[zKey] : "Unknown";
+                zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+            });
+            
             strChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: Object.keys(zipCounts),
                     datasets: [{
                         label: 'Active Listings',
-                        data: dataBins,
+                        data: Object.values(zipCounts),
                         backgroundColor: 'rgba(37, 99, 235, 0.7)',
                         borderColor: 'rgba(37, 99, 235, 1)',
                         borderWidth: 1,
@@ -434,10 +400,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
-                        x: { grid: { display: false } }
-                    }
+                    scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
                 }
             });
         }
