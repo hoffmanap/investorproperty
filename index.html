@@ -3,315 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Paso Housing Market Dynamics Tracker</title>
+    <title>El Paso Housing Market Dynamics</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        /* Custom scrollbar handling for dark mode panels */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #09090b; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
     </style>
 </head>
-<body class="bg-[#09090b] text-zinc-100 flex h-screen overflow-hidden antialiased">
+<body class="text-slate-800 flex h-screen overflow-hidden antialiased">
 
-    <div id="loading-overlay" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center text-white transition-opacity duration-500">
-        <div class="relative w-16 h-16 mb-4">
-            <div class="absolute inset-0 rounded-full border-4 border-zinc-800"></div>
-            <div class="absolute inset-0 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
-        </div>
-        <p class="text-sm font-semibold tracking-widest text-zinc-400 uppercase">Synchronizing El Paso Housing Assets...</p>
+    <div id="loading-overlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <i class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-600 mb-4"></i>
+        <h2 id="loading-text" class="text-lg font-semibold text-slate-800">Loading Market Data...</h2>
+        <div id="error-message" class="hidden mt-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg max-w-lg text-center text-sm"></div>
     </div>
 
-    <aside class="w-80 bg-[#121214] border-r border-zinc-800/80 flex flex-col justify-between shrink-0 z-10 shadow-2xl">
-        <div>
-            <div class="p-6 border-b border-zinc-800/60 bg-[#161619]/40">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-violet-600/10 border border-violet-500/30 flex items-center justify-center text-xl text-violet-400 shadow-inner">
-                        🏠
-                    </div>
-                    <div>
-                        <h1 class="text-base font-bold text-white tracking-tight leading-tight">El Paso Market Hub</h1>
-                        <p class="text-xs text-zinc-500 font-medium mt-0.5">Housing Dynamics Tracker</p>
-                    </div>
-                </div>
-            </div>
-            
-            <nav class="p-4 space-y-1.5">
-                <button onclick="switchView('overview')" id="btn-overview" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 bg-zinc-800 text-white border border-zinc-700/50 shadow-md">
-                    <i class="fa-solid fa-circle-nodes text-base text-violet-400"></i>
-                    <span>Project Intelligence Hub</span>
-                </button>
-                <button onclick="switchView('corporate')" id="btn-corporate" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200">
-                    <i class="fa-solid fa-building-shield text-base"></i>
-                    <span>Corporate Ownership Matrix</span>
-                </button>
-                <button onclick="switchView('str')" id="btn-str" class="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200">
-                    <i class="fa-solid fa-hotel text-base"></i>
-                    <span>STR 'Scattered Hotel' Analysis</span>
-                </button>
-            </nav>
+    <aside class="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
+        <div class="p-6 border-b border-slate-100">
+            <h1 class="text-lg font-bold text-slate-900 leading-tight">El Paso Housing Dynamics</h1>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">Project Tracker</p>
         </div>
         
-        <div class="p-4 border-t border-zinc-800/60 bg-[#0f0f11] text-[11px] font-mono text-zinc-500 flex items-center justify-between">
-            <span class="flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                System Operational
-            </span>
-            <span>v2026.1</span>
+        <nav class="flex-1 overflow-y-auto py-4">
+            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="nav-btn active w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
+                <i class="fa-solid fa-book-open w-5 text-center"></i> Project Overview
+            </button>
+            <button onclick="switchTab('tab-corporate')" id="btn-tab-corporate" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
+                <i class="fa-solid fa-building w-5 text-center"></i> Corporate Ownership
+            </button>
+            <button onclick="switchTab('tab-str')" id="btn-tab-str" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
+                <i class="fa-solid fa-house-chimney-user w-5 text-center"></i> STR Economic Impact
+            </button>
+        </nav>
+        
+        <div class="p-4 border-t border-slate-100 text-xs text-slate-400 text-center">
+            Last Updated: Automated Sync
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col overflow-y-auto bg-[#0c0c0e]">
+    <main class="flex-1 flex flex-col overflow-y-auto bg-slate-50">
         
-        <header class="bg-[#121214]/60 backdrop-blur-md border-b border-zinc-800/60 px-8 py-5 flex items-center justify-between sticky top-0 z-20">
-            <div>
-                <div class="text-[11px] font-mono tracking-widest text-violet-400 uppercase font-semibold">Analytical Framework Overview</div>
-                <h2 id="view-title" class="text-xl font-bold text-white mt-0.5">Project Intelligence Hub</h2>
-            </div>
+        <div class="p-8 max-w-5xl mx-auto w-full pb-20">
             
-            <div id="error-banner" class="hidden bg-rose-950/40 border border-rose-800/60 text-rose-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2.5 shadow-lg">
-                <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
-                <span class="font-medium">Repository Sync Warning: Data asset directory tracking is unresponsive. Check CSV file tree locations.</span>
-            </div>
-        </header>
-
-        <div class="p-8 max-w-7xl w-full mx-auto space-y-8">
-            
-            <section id="view-overview" class="space-y-8">
-                <div class="bg-gradient-to-br from-[#16161a] to-[#121214] p-8 rounded-2xl border border-zinc-800/80 shadow-xl relative overflow-hidden">
-                    <div class="absolute -right-16 -top-16 w-64 h-64 bg-violet-600/5 rounded-full blur-3xl"></div>
-                    <div class="max-w-3xl space-y-4 relative z-10">
-                        <div class="inline-flex items-center gap-2 px-3 py-1 bg-violet-500/10 border border-violet-500/20 rounded-full text-xs font-semibold text-violet-400">
-                            <i class="fa-solid fa-circle-info"></i> Executive Summary
-                        </div>
-                        <h3 class="text-2xl font-bold text-white tracking-tight">Tracking the Real Estate Financialization of El Paso</h3>
-                        <p class="text-zinc-400 text-sm leading-relaxed">
-                            This analytical environment serves as a structural framework tracking institutional acquisitions, real estate financialization pipelines, and systemic changes within the residential housing market of El Paso, Texas. By combining automated municipal ledger synchronization pipelines with web scraping architecture, this interface maps real-time trends shifting real estate from localized owner-occupancy into centralized financial assets.
+            <div id="tab-overview" class="tab-content space-y-8 animate-fade-in">
+                <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 class="text-3xl font-bold text-slate-900 mb-4">Tracking the Financialization of Housing in El Paso</h2>
+                    <div class="prose max-w-none text-slate-600 space-y-4">
+                        <p class="leading-relaxed">
+                            This project serves as an analytical framework tracking structural changes within the residential housing market of El Paso, Texas. By synchronizing municipal data and market listings, this interface maps real-time trends where traditional owner-occupied homes are transitioned into centralized financial assets.
                         </p>
-                        <p class="text-zinc-400 text-sm leading-relaxed">
-                            As private equity investment, institutional syndicates, and decentralized short-term vacation property rentals scale, local market metrics register shifts in asset density, structural tenant displacement risk, and pricing abnormalities.
+                        <p class="leading-relaxed">
+                            <strong>Why does this matter?</strong> As private equity investment, institutional syndicates, and short-term vacation rentals scale, local market metrics register shifts in neighborhood density, potential tenant displacement, and abnormal pricing pressure.
                         </p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-[#121214] border border-zinc-800/60 p-6 rounded-2xl flex flex-col justify-between hover:border-zinc-700/60 transition-colors duration-200">
-                        <div class="space-y-3">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg text-indigo-400 shadow-md">
-                                <i class="fa-solid fa-building-user"></i>
-                            </div>
-                            <h4 class="text-lg font-bold text-white">Corporate Ownership & Portfolios</h4>
-                            <p class="text-zinc-400 text-xs leading-relaxed">
-                                Tracks property acquisitions executed across corporate LLC shells, institutional buyers, and out-of-state syndications. Isolating these transaction footprints provides municipal observers with quantitative maps illustrating geographic capture densities within legacy working-class submarkets.
-                            </p>
-                        </div>
-                        <button onclick="switchView('corporate')" class="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 w-fit group">
-                            Explore Ownership Tracks <i class="fa-solid fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
-                        </button>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-corporate')">
+                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-building text-blue-600 mr-2"></i> Corporate Ownership</h3>
+                        <p class="text-sm text-slate-600">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
+                        <p class="text-sm text-blue-600 font-medium mt-4">View Map & Data &rarr;</p>
                     </div>
-
-                    <div class="bg-[#121214] border border-zinc-800/60 p-6 rounded-2xl flex flex-col justify-between hover:border-zinc-700/60 transition-colors duration-200">
-                        <div class="space-y-3">
-                            <div class="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-lg text-pink-400 shadow-md">
-                                <i class="fa-solid fa-house-laptop"></i>
-                            </div>
-                            <h4 class="text-lg font-bold text-white">Short-Term Rental 'Scattered Hotels'</h4>
-                            <p class="text-zinc-400 text-xs leading-relaxed">
-                                Audits the growth of active short-term rentals (STRs) taking single-family homes offline and converting them into high-yielding, short-term vacation operations. This layer assesses geographic distributions, baseline market average daily pricing indices, and municipal fiscal impacts.
-                            </p>
-                        </div>
-                        <button onclick="switchView('str')" class="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-pink-400 hover:text-pink-300 w-fit group">
-                            Explore Scattered Hotels <i class="fa-solid fa-arrow-right transform group-hover:translate-x-1 transition-transform"></i>
-                        </button>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-str')">
+                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-house-chimney-user text-blue-600 mr-2"></i> Short-Term Rentals</h3>
+                        <p class="text-sm text-slate-600">Audits the growth of active vacation rentals taking single-family homes offline, evaluating their market footprint and municipal tax impact.</p>
+                        <p class="text-sm text-blue-600 font-medium mt-4">View Simulator &rarr;</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="bg-[#121214] border border-zinc-800/60 rounded-2xl p-6">
-                    <h4 class="text-sm font-bold tracking-wider text-zinc-400 uppercase mb-4">Consolidated Market Metrics Baseline</h4>
-                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="bg-[#161619] p-4 rounded-xl border border-zinc-800/40">
-                            <span class="text-xs text-zinc-500 block font-medium">Tracking Corporate Assets</span>
-                            <span id="overview-buys" class="text-xl font-bold text-white mt-1 block">--</span>
-                        </div>
-                        <div class="bg-[#161619] p-4 rounded-xl border border-zinc-800/40">
-                            <span class="text-xs text-zinc-500 block font-medium">Conversion Pipeline Matches</span>
-                            <span id="overview-conv" class="text-xl font-bold text-indigo-400 mt-1 block">--</span>
-                        </div>
-                        <div class="bg-[#161619] p-4 rounded-xl border border-zinc-800/40">
-                            <span class="text-xs text-zinc-500 block font-medium">Vacation Operations Tracked</span>
-                            <span id="overview-str" class="text-xl font-bold text-pink-400 mt-1 block">--</span>
-                        </div>
-                        <div class="bg-[#161619] p-4 rounded-xl border border-zinc-800/40">
-                            <span class="text-xs text-zinc-500 block font-medium">Calculated Regional ADR</span>
-                            <span id="overview-adr" class="text-xl font-bold text-emerald-400 mt-1 block">--</span>
-                        </div>
-                    </div>
+            <div id="tab-corporate" class="tab-content hidden space-y-8 animate-fade-in">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900">Corporate Ownership & Acquisitions</h2>
+                    <p class="text-slate-600 mt-2">Visualizing real estate captured by institutional syndicates.</p>
                 </div>
-            </section>
 
-            <section id="view-corporate" class="space-y-8 hidden">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-md">
-                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-500">Corporate Purchases</p>
-                        <h3 id="kpi-buys" class="text-3xl font-extrabold text-white mt-2">--</h3>
-                        <p class="text-[11px] text-zinc-500 mt-1.5 font-medium">Asset inventory mapping records</p>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-blue-500">
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Corporate Purchases</p>
+                        <h3 id="kpi-buys" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
-                    <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-md">
-                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-500">STR Conversion Matches</p>
-                        <h3 id="kpi-conv" class="text-3xl font-extrabold text-indigo-400 mt-2">--</h3>
-                        <p class="text-[11px] text-zinc-500 mt-1.5 font-medium">Identified housing units transitioning functions</p>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-indigo-500">
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">STR Conversion Matches</p>
+                        <h3 id="kpi-conv" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
-                    <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-md">
-                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-500">Observed Conversion Pace</p>
-                        <h3 id="kpi-pace" class="text-3xl font-extrabold text-emerald-400 mt-2">--</h3>
-                        <p class="text-[11px] text-zinc-500 mt-1.5 font-medium">Percentage share tracking across records</p>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Observed Conversion Pace</p>
+                        <h3 id="kpi-pace" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
                 </div>
 
-                <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-xl space-y-4">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                     <div>
-                        <h4 class="text-lg font-bold text-white">Geospatial Distribution of Corporate Assets</h4>
-                        <p class="text-xs text-zinc-400 mt-0.5">Geographic coordinates plotted against municipal boundaries to trace market concentration trends.</p>
+                        <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
+                        <p class="text-sm text-slate-600 mt-1">Clusters of markers highlight neighborhoods experiencing high concentrations of investor purchasing.</p>
                     </div>
-                    <div class="w-full bg-[#161619] rounded-xl overflow-hidden border border-zinc-800/60" style="height: 560px;">
-                        <div id="map-corporate" class="w-full h-full"></div>
-                    </div>
+                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 500px;"></div>
                 </div>
-            </section>
+            </div>
 
-            <section id="view-str" class="space-y-8 hidden">
+            <div id="tab-str" class="tab-content hidden space-y-8 animate-fade-in">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-900">STR "Scattered Hotel" Economic Impact</h2>
+                    <p class="text-slate-600 mt-2">Evaluating the financial footprint of decentralized vacation rentals.</p>
+                </div>
+
+                <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
+                    <h3 class="text-lg font-bold text-blue-900 mb-2">What is the "Scattered Hotel" effect?</h3>
+                    <p class="text-sm text-blue-800 leading-relaxed">
+                        When investors acquire homes to use exclusively as Short-Term Rentals (STRs) on platforms like Airbnb, they create a network of "scattered hotels" across residential neighborhoods. Unlike traditional hotels, these properties often bypass municipal <strong>Hotel Occupancy Taxes (HOT)</strong>. 
+                        The simulator below takes current market data to calculate potential municipal tax revenue that is either uncollected or could be captured through enforcement.
+                    </p>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-md">
-                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-500">Active Monitored Vacation Rentals</p>
-                        <h3 id="kpi-str-count" class="text-3xl font-extrabold text-white mt-2">--</h3>
-                        <p class="text-[11px] text-zinc-500 mt-1.5 font-medium">Unique single-family properties operating hospitality platforms</p>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Vacation Rentals</p>
+                        <h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
-                    <div class="bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-md">
-                        <p class="text-xs font-bold uppercase tracking-wider text-zinc-500">Observed Market Average Daily Rate</p>
-                        <h3 id="kpi-str-adr" class="text-3xl font-extrabold text-pink-400 mt-2">--</h3>
-                        <p class="text-[11px] text-zinc-500 mt-1.5 font-medium">Computed pricing baseline metric</p>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Market Average Daily Rate</p>
+                        <h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    <div class="lg:col-span-5 bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-xl flex flex-col justify-between">
-                        <div>
-                            <h4 class="text-base font-bold text-white flex items-center gap-2">
-                                <i class="fa-solid fa-sliders text-pink-400 text-sm"></i>
-                                Municipal Fee & Tax Capture Simulator
-                            </h4>
-                            <p class="text-xs text-zinc-400 mt-1 mb-6">Model municipal tax capture projections across variables based on localized inventories.</p>
-                            
-                            <div class="space-y-2 mb-6">
-                                <div class="flex justify-between text-xs font-medium">
-                                    <label for="slider-occ" class="text-zinc-300">Assumed Occupancy Density Factor:</label>
-                                    <span id="val-occ" class="text-pink-400 font-semibold font-mono">60%</span>
-                                </div>
-                                <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-pink-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
-                            </div>
-
-                            <div class="space-y-2">
-                                <div class="flex justify-between text-xs font-medium">
-                                    <label for="slider-tax" class="text-zinc-300">Simulated Tax (HOT) Rate:</label>
-                                    <span id="val-tax" class="text-pink-400 font-semibold font-mono">7.0%</span>
-                                </div>
-                                <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-pink-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer">
-                            </div>
-                        </div>
-
-                        <div class="mt-8 pt-6 border-t border-zinc-800/60 space-y-4 bg-[#161619]/60 p-4 rounded-xl border border-zinc-800/40">
-                            <div>
-                                <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Estimated Total Monthly Market Revenue</p>
-                                <p id="calc-rev" class="text-xl font-bold text-white mt-0.5 font-mono">$0.00</p>
-                            </div>
-                            <div>
-                                <p class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Projected Monthly Tax Capture Potential</p>
-                                <p id="calc-tax" class="text-xl font-bold text-emerald-400 mt-0.5 font-mono">$0.00</p>
-                            </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <h3 class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
+                        <p class="text-xs text-slate-500 mb-6">Number of active listings binned by their nightly rate.</p>
+                        <div class="flex-1 relative w-full h-64">
+                            <canvas id="strChart"></canvas>
                         </div>
                     </div>
 
-                    <div class="lg:col-span-7 bg-[#121214] p-6 rounded-2xl border border-zinc-800/60 shadow-xl">
-                        <h4 class="text-base font-bold text-white">Market Density & Pricing Spread</h4>
-                        <p class="text-xs text-zinc-400 mt-0.5 mb-4">Histogram plotting listing distributions over price boundaries to highlight inventory variations.</p>
-                        <div id="chart-str-dist" class="w-full" style="height: 340px;"></div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-calculator text-blue-600 mr-2"></i> Municipal Tax Simulator</h3>
+                        
+                        <div class="space-y-6">
+                            <div>
+                                <div class="flex justify-between text-sm mb-2">
+                                    <label class="font-medium text-slate-700">Assumed Average Occupancy:</label>
+                                    <span id="val-occ" class="font-bold text-blue-600">60%</span>
+                                </div>
+                                <input id="slider-occ" type="range" min="10" max="100" step="5" value="60" oninput="runTaxSimulation()" class="w-full accent-blue-600">
+                                <p class="text-xs text-slate-400 mt-1">Percentage of days per month the average unit is booked.</p>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-sm mb-2">
+                                    <label class="font-medium text-slate-700">Hotel Occupancy Tax (HOT) Rate:</label>
+                                    <span id="val-tax" class="font-bold text-blue-600">7.0%</span>
+                                </div>
+                                <input id="slider-tax" type="range" min="1.0" max="15.0" step="0.5" value="7.0" oninput="runTaxSimulation()" class="w-full accent-blue-600">
+                                <p class="text-xs text-slate-400 mt-1">The municipal tax rate applied to hospitality stays.</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm font-semibold text-slate-600">Est. Total Monthly Revenue:</span>
+                                <span id="calc-rev" class="text-xl font-bold text-slate-900">$0</span>
+                            </div>
+                            <div class="flex justify-between items-center pt-3 border-t border-slate-200">
+                                <span class="text-sm font-semibold text-slate-600">Projected Monthly Tax Capture:</span>
+                                <span id="calc-tax" class="text-xl font-bold text-emerald-600">$0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </div>
 
         </div>
     </main>
 
     <script>
-        // Data Store Objects Definition
-        let dataset = {
-            investor: [],
-            str: [],
-            displacement: [],
-            avgAdr: 150.0
-        };
+        let dataset = { investor: [], str: [], displacement: [], avgAdr: 150.0 };
+        let leafletMap = null;
+        let strChartInstance = null;
 
-        // DOM Concurrency Execution Strategy Loader
         document.addEventListener("DOMContentLoaded", () => {
+            // STRICT RELATIVE PATHS TO FIX 404 GITHUB PAGES ISSUES
             Promise.all([
-                fetchCSV('data/investor_buys.csv'),
-                fetchCSV('data/active_str_listings.csv'),
-                fetchCSV('data/local_displacement_trends.csv')
+                fetchCSV('./data/investor_buys.csv'),
+                fetchCSV('./data/active_str_listings.csv'),
+                fetchCSV('./data/local_displacement_trends.csv')
             ]).then(([investorData, strData, displacementData]) => {
                 
-                // Parse and map corporate tracking layers
-                if(investorData && investorData.length > 0) {
-                    dataset.investor = investorData.filter(row => row.latitude && row.longitude && !isNaN(parseFloat(row.latitude)) && !isNaN(parseFloat(row.longitude)));
-                }
-                
-                // Parse displacement tracker components
+                if(investorData) dataset.investor = investorData.filter(r => r.latitude && r.longitude);
                 if(displacementData) dataset.displacement = displacementData;
-
-                // Process STR tracking inventory layer
+                
                 if(strData && strData.length > 0) {
                     dataset.str = strData;
-                    
-                    // Clean and process listing price values
-                    let parsedPrices = strData.map(row => {
-                        if (!row.price) return null;
-                        let cleanStr = String(row.price).replace(/[^0-9.]/g, '');
-                        let val = parseFloat(cleanStr);
+                    let prices = strData.map(r => {
+                        if (!r.price) return null;
+                        let val = parseFloat(String(r.price).replace(/[^0-9.]/g, ''));
                         return isNaN(val) ? null : val;
                     }).filter(v => v !== null);
 
-                    if (parsedPrices.length > 0) {
-                        let sum = parsedPrices.reduce((a, b) => a + b, 0);
-                        dataset.avgAdr = sum / parsedPrices.length;
+                    if (prices.length > 0) {
+                        dataset.avgAdr = prices.reduce((a, b) => a + b, 0) / prices.length;
                     }
                 }
 
-                // Hydrate variables across DOM and chart modules
-                initializeDashboardMetrics();
-                renderInvestorMap();
-                renderSTRDistributionChart();
+                initializeMetrics();
                 runTaxSimulation();
 
-                // Clear the loader screen overlay smoothly
-                const loader = document.getElementById('loading-overlay');
-                loader.classList.add('opacity-0');
-                setTimeout(() => loader.remove(), 500);
+                document.getElementById('loading-overlay').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
 
             }).catch(err => {
-                console.error("Dashboard Engine Parsing Error:", err);
-                document.getElementById('error-banner').classList.remove('hidden');
-                document.getElementById('loading-overlay').remove();
+                console.error(err);
+                document.getElementById('loading-text').innerText = "Data Synchronization Failed";
+                document.getElementById('loading-text').classList.add('text-red-600');
+                const errBox = document.getElementById('error-message');
+                errBox.classList.remove('hidden');
+                errBox.innerHTML = `<strong>Error (404):</strong> Could not locate CSV files. Ensure that <code>investor_buys.csv</code>, <code>active_str_listings.csv</code>, and <code>local_displacement_trends.csv</code> are correctly uploaded inside the <strong>/data/</strong> folder in your repository.`;
             });
         });
 
-        // Async Wrapper around PapaParse asset fetch execution
+        // Wrapper for PapaParse
         function fetchCSV(path) {
             return new Promise((resolve, reject) => {
                 Papa.parse(path, {
@@ -324,164 +249,136 @@
             });
         }
 
-        // Central DOM KPI Hydration logic setup
-        function initializeDashboardMetrics() {
+        // Populate basic DOM numbers
+        function initializeMetrics() {
             const totalBuys = dataset.investor.length;
             const totalConv = dataset.displacement.length;
             const convPace = totalBuys > 0 ? ((totalConv / totalBuys) * 100).toFixed(1) : "0.0";
 
-            // Dashboard module readouts
-            document.getElementById('kpi-buys').innerText = totalBuys.toLocaleString() + " Properties";
-            document.getElementById('kpi-conv').innerText = totalConv.toLocaleString() + " Units";
+            document.getElementById('kpi-buys').innerText = totalBuys.toLocaleString();
+            document.getElementById('kpi-conv').innerText = totalConv.toLocaleString();
             document.getElementById('kpi-pace').innerText = convPace + "%";
 
-            document.getElementById('kpi-str-count').innerText = dataset.str.length.toLocaleString() + " Units";
+            document.getElementById('kpi-str-count').innerText = dataset.str.length.toLocaleString();
             document.getElementById('kpi-str-adr').innerText = "$" + dataset.avgAdr.toFixed(2);
-
-            // Introductory Landing View summary readouts
-            document.getElementById('overview-buys').innerText = totalBuys.toLocaleString();
-            document.getElementById('overview-conv').innerText = totalConv.toLocaleString();
-            document.getElementById('overview-str').innerText = dataset.str.length.toLocaleString();
-            document.getElementById('overview-adr').innerText = "$" + dataset.avgAdr.toFixed(2);
         }
 
-        // View Visibility Selector Engine Controls Toggle
-        function switchView(viewId) {
-            const sections = {
-                overview: document.getElementById('view-overview'),
-                corporate: document.getElementById('view-corporate'),
-                str: document.getElementById('view-str')
-            };
-            const buttons = {
-                overview: document.getElementById('btn-overview'),
-                corporate: document.getElementById('btn-corporate'),
-                str: document.getElementById('btn-str')
-            };
-            const title = document.getElementById('view-title');
-
-            // Reset formatting mappings across view states
-            Object.keys(sections).forEach(key => {
-                sections[key].classList.add('hidden');
-                buttons[key].className = "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200";
-                // De-hydrate structural colors from icons inside passive layouts
-                const icon = buttons[key].querySelector('i');
-                if(icon) icon.className = icon.className.replace('text-violet-400', '').replace('text-indigo-400', '').replace('text-pink-400', '');
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            // Reset Nav styling
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
+                el.classList.add('text-slate-600');
             });
-
-            // Isolate active styling states
-            sections[viewId].classList.remove('hidden');
             
-            if (viewId === 'overview') {
-                buttons.overview.className = "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 bg-zinc-800 text-white border border-zinc-700/50 shadow-md";
-                buttons.overview.querySelector('i').classList.add('text-violet-400');
-                title.innerText = "Project Intelligence Hub";
-            } else if (viewId === 'corporate') {
-                buttons.corporate.className = "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 bg-zinc-800 text-white border border-zinc-700/50 shadow-md";
-                buttons.corporate.querySelector('i').classList.add('text-indigo-400');
-                title.innerText = "Corporate Ownership & Acquisition Tracks";
-                // Instantly re-compute size profiles to prevent canvas clipping bugs
-                setTimeout(() => Plotly.Plots.resize('map-corporate'), 50);
-            } else if (viewId === 'str') {
-                buttons.str.className = "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 bg-zinc-800 text-white border border-zinc-700/50 shadow-md";
-                buttons.str.querySelector('i').classList.add('text-pink-400');
-                title.innerText = "Decentralized Hospitality Unit Sizing Analysis";
-                setTimeout(() => Plotly.Plots.resize('chart-str-dist'), 50);
+            // Show requested tab
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.add('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
+            activeBtn.classList.remove('text-slate-600');
+
+            // Render visual tools dynamically depending on the tab opened
+            if(tabId === 'tab-corporate') {
+                renderLeafletMap();
+            } else if (tabId === 'tab-str') {
+                renderChartJS();
             }
         }
 
-        // Plotly Corporate Map Engine Context Initialization
-        function renderInvestorMap() {
+        // Beautiful Leaflet Mapping Implementation (Replaces buggy Plotly)
+        function renderLeafletMap() {
+            if (leafletMap) {
+                // Leaflet needs to know if its container size changed while it was hidden
+                setTimeout(() => leafletMap.invalidateSize(), 50);
+                return;
+            }
             if (dataset.investor.length === 0) return;
 
-            const lats = dataset.investor.map(d => parseFloat(d.latitude));
-            const lons = dataset.investor.map(d => parseFloat(d.longitude));
+            // Initialize Map
+            leafletMap = L.map('map-container').setView([31.7619, -106.4850], 10);
+            
+            // Extremely clean, modern map tiles (CARTO Positron)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(leafletMap);
 
-            const trace = {
-                type: "scattermapbox",
-                lat: lats,
-                lon: lons,
-                mode: "markers",
-                marker: {
-                    size: 6,
-                    color: "#8b5cf6", // Violet neon color profile matching dark design
-                    opacity: 0.75
-                },
-                text: dataset.investor.map(d => `Corporate Property Allocation`)
-            };
-
-            const layout = {
-                mapbox: {
-                    style: "cartodb-darkmatter", // HIGH QUALITY MODERN BASEMAP UPGRADE
-                    center: { lat: 31.7619, lon: -106.4850 }, // Central El Paso Coordinates
-                    zoom: 10.2
-                },
-                margin: { r: 0, t: 0, l: 0, b: 0 },
-                showlegend: false,
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)'
-            };
-
-            const config = { responsive: true, displayModeBar: false };
-            Plotly.newPlot('map-corporate', [trace], layout, config);
-        }
-
-        // Data Density Pricing Bar Charts
-        function renderSTRDistributionChart() {
-            if (dataset.str.length === 0) return;
-
-            let prices = dataset.str.map(row => {
-                if (!row.price) return null;
-                let val = parseFloat(String(row.price).replace(/[^0-9.]/g, ''));
-                return isNaN(val) ? null : val;
-            }).filter(v => v !== null && v < 500); // Caps outliers to keep grid scalable
-
-            const trace = {
-                x: prices,
-                type: 'histogram',
-                autobinx: true,
-                marker: {
-                    color: 'rgba(236, 72, 153, 0.25)', // Semi-transparent magenta hue
-                    line: { color: '#ec4899', width: 1.5 }
+            // Add beautiful semi-transparent red data points
+            dataset.investor.forEach(d => {
+                if(d.latitude && d.longitude) {
+                    L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
+                        radius: 5,
+                        fillColor: "#ef4444", // Modern Red
+                        color: "#ffffff",     // White border
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.7
+                    }).addTo(leafletMap);
                 }
-            };
-
-            const layout = {
-                margin: { l: 50, r: 20, t: 15, b: 45 },
-                xaxis: { 
-                    title: { text: "Nightly Rate ($)", font: { color: '#a1a1aa', size: 11 } },
-                    gridcolor: "#27272a",
-                    tickfont: { color: '#71717a' }
-                },
-                yaxis: { 
-                    title: { text: "Active Listings Volume", font: { color: '#a1a1aa', size: 11 } },
-                    gridcolor: "#27272a",
-                    tickfont: { color: '#71717a' }
-                },
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                bargap: 0.1
-            };
-
-            Plotly.newPlot('chart-str-dist', [trace], layout, { responsive: true, displayModeBar: false });
+            });
         }
 
-        // Reactive Policy Fee Calculation Simulator Engine
+        // Beautiful Chart.js Implementation (Replaces buggy Plotly)
+        function renderChartJS() {
+            if (strChartInstance || dataset.str.length === 0) return;
+
+            // Bin the prices for a histogram
+            const bins = Array(15).fill(0);
+            const binSize = 30; // $30 increments
+            
+            dataset.str.forEach(row => {
+                if (!row.price) return;
+                let val = parseFloat(String(row.price).replace(/[^0-9.]/g, ''));
+                if (!isNaN(val) && val < (bins.length * binSize)) {
+                    bins[Math.floor(val / binSize)]++;
+                }
+            });
+
+            const labels = bins.map((_, i) => `$${i * binSize}-${(i + 1) * binSize}`);
+            
+            const ctx = document.getElementById('strChart').getContext('2d');
+            strChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Active Listings',
+                        data: bins,
+                        backgroundColor: 'rgba(37, 99, 235, 0.7)', // Blue-600
+                        borderColor: 'rgba(37, 99, 235, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Simulator Logic
         function runTaxSimulation() {
             const totalStr = dataset.str.length || 0;
             const occRate = parseFloat(document.getElementById('slider-occ').value);
             const taxRate = parseFloat(document.getElementById('slider-tax').value);
 
-            // Update user dashboard labels
             document.getElementById('val-occ').innerText = occRate + "%";
             document.getElementById('val-tax').innerText = taxRate.toFixed(1) + "%";
 
-            // Math tracking configurations
             const monthlyRev = totalStr * dataset.avgAdr * (occRate / 100) * 30.4;
             const monthlyTax = monthlyRev * (taxRate / 100);
 
-            // Output processed figures safely to target elements
-            document.getElementById('calc-rev').innerText = "$" + monthlyRev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.getElementById('calc-tax').innerText = "$" + monthlyTax.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('calc-rev').innerText = "$" + monthlyRev.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            document.getElementById('calc-tax').innerText = "$" + monthlyTax.toLocaleString('en-US', { maximumFractionDigits: 0 });
         }
     </script>
 </body>
