@@ -22,6 +22,8 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
         .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
+        /* Map Layer Control Styling */
+        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important; padding: 4px !important;}
     </style>
 </head>
 <body class="text-slate-800 flex h-screen overflow-hidden antialiased">
@@ -97,7 +99,7 @@
                         <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Corporate Purchases</p>
                         <h3 id="kpi-buys" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-indigo-500">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-amber-500">
                         <p class="text-xs font-bold uppercase tracking-wider text-slate-500">STR Conversion Matches</p>
                         <h3 id="kpi-conv" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
                     </div>
@@ -110,9 +112,9 @@
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                     <div>
                         <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                        <p class="text-sm text-slate-600 mt-1">Clusters of markers highlight neighborhoods experiencing high concentrations of investor purchasing.</p>
+                        <p class="text-sm text-slate-600 mt-1">Use the legend toggle in the top right to filter layers.</p>
                     </div>
-                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 500px;"></div>
+                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 550px;"></div>
                 </div>
             </div>
 
@@ -144,8 +146,8 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     
                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                        <h3 class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
-                        <p class="text-xs text-slate-500 mb-6">Number of active listings binned by their nightly rate.</p>
+                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1">Pricing Spread Distribution</h3>
+                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Number of active listings binned by their nightly rate.</p>
                         <div class="flex-1 relative w-full h-64">
                             <canvas id="strChart"></canvas>
                         </div>
@@ -197,7 +199,6 @@
         let strChartInstance = null;
 
         document.addEventListener("DOMContentLoaded", () => {
-            // STRICT RELATIVE PATHS TO FIX 404 GITHUB PAGES ISSUES
             Promise.all([
                 fetchCSV('./data/investor_buys.csv'),
                 fetchCSV('./data/active_str_listings.csv'),
@@ -236,7 +237,6 @@
             });
         });
 
-        // Wrapper for PapaParse
         function fetchCSV(path) {
             return new Promise((resolve, reject) => {
                 Papa.parse(path, {
@@ -249,7 +249,6 @@
             });
         }
 
-        // Populate basic DOM numbers
         function initializeMetrics() {
             const totalBuys = dataset.investor.length;
             const totalConv = dataset.displacement.length;
@@ -263,23 +262,18 @@
             document.getElementById('kpi-str-adr').innerText = "$" + dataset.avgAdr.toFixed(2);
         }
 
-        // Tab Switching Logic
         function switchTab(tabId) {
-            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            // Reset Nav styling
             document.querySelectorAll('.nav-btn').forEach(el => {
                 el.classList.remove('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
                 el.classList.add('text-slate-600');
             });
             
-            // Show requested tab
             document.getElementById(tabId).classList.remove('hidden');
             const activeBtn = document.getElementById('btn-' + tabId);
             activeBtn.classList.add('active', 'bg-blue-50', 'text-blue-700', 'border-blue-600', 'font-semibold');
             activeBtn.classList.remove('text-slate-600');
 
-            // Render visual tools dynamically depending on the tab opened
             if(tabId === 'tab-corporate') {
                 renderLeafletMap();
             } else if (tabId === 'tab-str') {
@@ -287,67 +281,142 @@
             }
         }
 
-        // Beautiful Leaflet Mapping Implementation (Replaces buggy Plotly)
+        // Updated Map with Layers, Legends, and Locality Checking
         function renderLeafletMap() {
             if (leafletMap) {
-                // Leaflet needs to know if its container size changed while it was hidden
                 setTimeout(() => leafletMap.invalidateSize(), 50);
                 return;
             }
             if (dataset.investor.length === 0) return;
 
-            // Initialize Map
             leafletMap = L.map('map-container').setView([31.7619, -106.4850], 10);
             
-            // Extremely clean, modern map tiles (CARTO Positron)
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
                 subdomains: 'abcd',
                 maxZoom: 20
             }).addTo(leafletMap);
 
-            // Add beautiful semi-transparent red data points
+            // Create Layer Groups
+            let localLayer = L.layerGroup();
+            let nonLocalLayer = L.layerGroup();
+            let strConversionLayer = L.layerGroup();
+
+            // 1. Process Investors (Flagging Local vs Non-Local)
             dataset.investor.forEach(d => {
                 if(d.latitude && d.longitude) {
-                    L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
+                    
+                    // Determine if Local (Check common column names for state or type)
+                    let isLocal = true; 
+                    let ownerState = d.owner_state || d.state || d.owner_mailing_state || "";
+                    let invType = d.investor_type || "";
+                    
+                    if(ownerState && ownerState.toUpperCase().trim() !== 'TX') isLocal = false;
+                    if(invType && invType.toLowerCase().includes('out')) isLocal = false;
+
+                    let marker = L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
                         radius: 5,
-                        fillColor: "#ef4444", // Modern Red
-                        color: "#ffffff",     // White border
+                        fillColor: isLocal ? "#3b82f6" : "#ef4444", // Blue for local, Red for Out-of-state
+                        color: "#ffffff",
                         weight: 1,
                         opacity: 1,
-                        fillOpacity: 0.7
-                    }).addTo(leafletMap);
+                        fillOpacity: 0.75
+                    }).bindPopup(`<b>Corporate Acquisition</b><br>Locality: ${isLocal ? 'Local (TX)' : 'Out-of-State'}`);
+
+                    if (isLocal) localLayer.addLayer(marker);
+                    else nonLocalLayer.addLayer(marker);
                 }
             });
+
+            // 2. Process STR Conversions 
+            dataset.displacement.forEach(d => {
+                if(d.latitude && d.longitude) {
+                    let marker = L.circleMarker([parseFloat(d.latitude), parseFloat(d.longitude)], {
+                        radius: 7,
+                        fillColor: "#f59e0b", // Amber/Yellow
+                        color: "#000000",
+                        weight: 1.5,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    }).bindPopup(`<b>STR Conversion Match</b><br>Asset repurposed for hospitality.`);
+                    strConversionLayer.addLayer(marker);
+                }
+            });
+
+            // Add layers to map by default
+            localLayer.addTo(leafletMap);
+            nonLocalLayer.addTo(leafletMap);
+            strConversionLayer.addTo(leafletMap);
+
+            // Create Interactive Control Legend
+            let overlayMaps = {
+                "<span class='text-blue-500 font-bold text-lg leading-none'>■</span> Local Corporate (TX)": localLayer,
+                "<span class='text-red-500 font-bold text-lg leading-none'>■</span> Out-of-State Corporate": nonLocalLayer,
+                "<span class='text-amber-500 font-bold text-lg leading-none'>●</span> STR Conversions": strConversionLayer
+            };
+
+            L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
         }
 
-        // Beautiful Chart.js Implementation (Replaces buggy Plotly)
+        // Updated Chart Engine with Dynamic Scaling
         function renderChartJS() {
             if (strChartInstance || dataset.str.length === 0) return;
 
-            // Bin the prices for a histogram
-            const bins = Array(15).fill(0);
-            const binSize = 30; // $30 increments
-            
-            dataset.str.forEach(row => {
-                if (!row.price) return;
-                let val = parseFloat(String(row.price).replace(/[^0-9.]/g, ''));
-                if (!isNaN(val) && val < (bins.length * binSize)) {
-                    bins[Math.floor(val / binSize)]++;
-                }
-            });
+            let validPrices = dataset.str.map(r => {
+                if (!r.price) return null;
+                let val = parseFloat(String(r.price).replace(/[^0-9.]/g, ''));
+                return isNaN(val) ? null : val;
+            }).filter(v => v !== null);
 
-            const labels = bins.map((_, i) => `$${i * binSize}-${(i + 1) * binSize}`);
-            
             const ctx = document.getElementById('strChart').getContext('2d');
+            let labels = [];
+            let dataBins = [];
+
+            // If we have enough data, do a dynamic price histogram
+            if (validPrices.length > 5) {
+                // Remove extreme outliers (top 2%) for a cleaner chart
+                validPrices.sort((a,b) => a-b);
+                let p98 = validPrices[Math.floor(validPrices.length * 0.98)];
+                let chartPrices = validPrices.filter(p => p <= p98);
+
+                let minPrice = Math.floor(Math.min(...chartPrices) / 10) * 10;
+                let maxPrice = Math.ceil(Math.max(...chartPrices) / 10) * 10;
+                let binCount = 10;
+                let binSize = Math.max(10, Math.ceil((maxPrice - minPrice) / binCount));
+
+                let bins = Array(binCount).fill(0);
+                chartPrices.forEach(p => {
+                    let index = Math.floor((p - minPrice) / binSize);
+                    if (index >= bins.length) index = bins.length - 1; // Catch edge case
+                    if(index >= 0) bins[index]++;
+                });
+
+                labels = bins.map((_, i) => `$${minPrice + (i * binSize)} - $${minPrice + ((i + 1) * binSize)}`);
+                dataBins = bins;
+            } 
+            // Fallback Chart: If very little price data exists, group by Zip Code instead
+            else {
+                document.getElementById('chart-title').innerText = "Listings by Zip Code";
+                document.getElementById('chart-subtitle').innerText = "Insufficient price data. Displaying inventory spread by ZIP.";
+                
+                let zipCounts = {};
+                dataset.str.forEach(row => {
+                    let zip = row.zipcode || row.zip || "Unknown";
+                    zipCounts[zip] = (zipCounts[zip] || 0) + 1;
+                });
+                
+                labels = Object.keys(zipCounts);
+                dataBins = Object.values(zipCounts);
+            }
+
             strChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: 'Active Listings',
-                        data: bins,
-                        backgroundColor: 'rgba(37, 99, 235, 0.7)', // Blue-600
+                        data: dataBins,
+                        backgroundColor: 'rgba(37, 99, 235, 0.7)',
                         borderColor: 'rgba(37, 99, 235, 1)',
                         borderWidth: 1,
                         borderRadius: 4
@@ -365,7 +434,6 @@
             });
         }
 
-        // Simulator Logic
         function runTaxSimulation() {
             const totalStr = dataset.str.length || 0;
             const occRate = parseFloat(document.getElementById('slider-occ').value);
