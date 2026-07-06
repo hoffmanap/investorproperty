@@ -1,4 +1,4 @@
-name: Weekly El Paso Housing Data Sync
+name: Weekly El Paso Housing Data Sync & Deploy
 
 on:
   schedule:
@@ -6,8 +6,22 @@ on:
     - cron: '0 0 * * 0'
   workflow_dispatch: # Allows you to manually trigger the sync pipeline from the GitHub web UI anytime
 
+# 1. CRITICAL FIX: Explicitly grant permissions for code changes and deployment authentication
+permissions:
+  contents: write  # Required to commit and push updated data/*.csv back to the repo
+  pages: write     # Required to clear and deploy assets to GitHub Pages
+  id-token: write  # Required to securely authenticate with the Pages backend via OIDC
+
+# Allow only one concurrent deployment to prevent race conditions
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  build-and-sync:
+  build-sync-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
@@ -49,3 +63,14 @@ jobs:
           git commit -m "Automated Weekly Sync: Updated El Paso Housing Trackers"
           git push
         fi
+
+    # Step 6: Package and upload the root folder containing index.html and the data/ folder
+    - name: Upload Pages Artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: '.' # Specifies the root directory containing your site assets
+
+    # Step 7: Push the uploaded package live to GitHub Pages
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v5
