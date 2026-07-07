@@ -3,602 +3,632 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Paso Housing Market Dynamics</title>
-    
+    <title>El Paso Housing Market Dynamics Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
-        .leaflet-control-layers { border-radius: 8px !important; border: 1px solid #e2e8f0 !important; padding: 8px !important;}
+        /* Custom map styling to match ultra-premium dark themes */
+        .leaflet-container {
+            background: #09090b !important;
+        }
+        /* Custom scrollbar adjustments */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
     </style>
 </head>
-<body class="text-slate-800 flex h-screen overflow-hidden antialiased">
+<body class="bg-zinc-950 text-zinc-100 font-sans min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
 
-    <div id="loading-overlay" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-6 text-white transition-opacity duration-500">
-        <div class="flex items-center gap-3 mb-2">
-            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-500"></i>
-            <h2 id="loading-text" class="text-lg font-semibold">Aligning Multi-Table Geospatial Records...</h2>
-        </div>
-        <p class="text-xs text-slate-400 max-w-md text-center mb-6">Cross-referencing property parcels and applying strict locality filters.</p>
-        
-        <div class="w-full max-w-2xl bg-slate-950 p-4 rounded-xl border border-slate-800 font-mono text-xs space-y-2 text-slate-300 shadow-2xl">
-            <div class="text-blue-400 font-bold border-b border-slate-800 pb-1 uppercase tracking-wider text-[10px]">Data Alignment Logs:</div>
-            <div id="diag-investor">📁 investor_buys.csv: <span class="text-slate-500">Reading...</span></div>
-            <div id="diag-displacement">📁 local_displacement_trends.csv: <span class="text-slate-500">Reading...</span></div>
-            <div id="diag-str">📁 active_str_listings.csv: <span class="text-slate-500">Reading...</span></div>
-        </div>
-    </div>
-
-    <aside class="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10">
-        <div class="p-6 border-b border-slate-100">
-            <h1 class="text-lg font-bold text-slate-900 leading-tight">El Paso Housing Dynamics</h1>
-            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider font-semibold">Project Tracker</p>
-        </div>
-        
-        <nav class="flex-1 overflow-y-auto py-4">
-            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="nav-btn active w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
-                <i class="fa-solid fa-book-open w-5 text-center"></i> Project Overview
-            </button>
-            <button onclick="switchTab('tab-corporate')" id="btn-tab-corporate" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
-                <i class="fa-solid fa-building w-5 text-center"></i> Corporate Ownership
-            </button>
-            <button onclick="switchTab('tab-str')" id="btn-tab-str" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm text-slate-600 hover:bg-slate-50 border-l-4 border-transparent transition-colors">
-                <i class="fa-solid fa-wallet w-5 text-center"></i> Rental & Affordability Impact
-            </button>
-        </nav>
-    </aside>
-
-    <main class="flex-1 flex flex-col overflow-y-auto bg-slate-50">
-        <div class="p-8 max-w-5xl mx-auto w-full pb-20">
-            
-            <div id="tab-overview" class="tab-content space-y-8">
-                <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
-                    <h2 class="text-3xl font-bold text-slate-900 mb-4">Tracking the Financialization of Housing in El Paso</h2>
-                    <div class="prose max-w-none text-slate-600 space-y-4">
-                        <p class="leading-relaxed">
-                            This project serves as an analytical framework tracking structural changes within the residential housing market of El Paso, Texas. By synchronizing municipal data and market listings, this interface maps real-time trends where traditional owner-occupied homes are transitioned into centralized financial assets.
-                        </p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-corporate')">
-                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-building text-blue-600 mr-2"></i> Corporate Ownership</h3>
-                        <p class="text-sm text-slate-600">Tracks single-family home acquisitions executed by corporate LLC shells and out-of-state institutional investors to identify geographic target areas.</p>
-                        <p class="text-sm text-blue-600 font-medium mt-4">View Map & Data &rarr;</p>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onclick="switchTab('tab-str')">
-                        <h3 class="text-lg font-bold text-slate-900 mb-2"><i class="fa-solid fa-wallet text-blue-600 mr-2"></i> Rental Market Impact</h3>
-                        <p class="text-sm text-slate-600">Audits active long-term rental market rates and inventory, tracking localized rent pricing trends and municipal housing affordability bounds.</p>
-                        <p class="text-sm text-blue-600 font-medium mt-4">View Simulator &rarr;</p>
-                    </div>
+    <header class="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🏠</span>
+                <div>
+                    <h1 class="text-md font-bold tracking-tight bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">EL PASO HOUSING LANDSCAPE</h1>
+                    <p class="text-xs text-zinc-500 font-mono tracking-wider uppercase">Market Dynamics & Affordability Hub</p>
                 </div>
             </div>
+            <nav class="flex space-x-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800" id="mainTabs">
+                <button onclick="switchTab('overview')" id="tab-overview" class="px-4 py-1.5 text-xs font-medium rounded-md transition-all text-white bg-indigo-600 shadow-sm">
+                    Overview
+                </button>
+                <button onclick="switchTab('corporate')" id="tab-corporate" class="px-4 py-1.5 text-xs font-medium rounded-md transition-all text-zinc-400 hover:text-zinc-200">
+                    Corporate Purchases
+                </button>
+                <button onclick="switchTab('affordability')" id="tab-affordability" class="px-4 py-1.5 text-xs font-medium rounded-md transition-all text-zinc-400 hover:text-zinc-200">
+                    Rental & Affordability Impact
+                </button>
+            </nav>
+        </div>
+    </header>
 
-            <div id="tab-corporate" class="tab-content hidden space-y-8">
-                <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Corporate Ownership & Acquisitions</h2>
-                    <p class="text-slate-600 mt-2">Visualizing real estate captured by institutional syndicates.</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-blue-500">
-                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Total Corporate Purchases</p>
-                        <h3 id="kpi-buys" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-amber-500">
-                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">STR Conversion Matches</p>
-                        <h3 id="kpi-conv" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
-                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Observed Conversion Pace</p>
-                        <h3 id="kpi-pace" class="text-3xl font-bold text-slate-900 mt-2">--</h3>
-                    </div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="text-lg font-bold text-slate-900">Geospatial Distribution Map</h3>
-                            <p class="text-sm text-slate-600 mt-1">Click a bar on the chart below to filter the map markers by that specific ZIP Code.</p>
-                        </div>
-                        <div id="active-filter-indicator" class="hidden bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 shadow-sm"></div>
-                    </div>
-                    <div id="map-container" class="w-full bg-slate-100 rounded-lg border border-slate-300 relative z-0" style="height: 500px;"></div>
-                </div>
-
-                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                    <h3 class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-chart-bar text-blue-600 mr-2"></i> Corporate Acquisitions by ZIP Code</h3>
-                    <p class="text-xs text-slate-500 mb-6">Total volume of investor property purchases grouped by sector. Click any column to activate a map filter.</p>
-                    <div class="relative w-full h-72">
-                        <canvas id="corporateZipChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tab-str" class="tab-content hidden space-y-8">
-                <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Long-Term Rental Inventory & Market Affordability Bounds</h2>
-                    <p class="text-slate-600 mt-2">Evaluating pricing pressures within El Paso's residential lease supply.</p>
-                </div>
-                <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
-                    <h3 class="text-lg font-bold text-blue-900 mb-2">Analyzing the Financialization Yield Curve</h3>
-                    <p class="text-sm text-blue-800 leading-relaxed">
-                        When single-family inventory is consolidated by corporate entities, homes are frequently converted into high-yield long-term rentals. The charts below track active market listings sourced via RentCast, tracking the community rent burden threshold based on local income constraints.
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <section id="content-overview" class="space-y-8 animate-fade-in">
+            <div class="relative rounded-2xl overflow-hidden border border-zinc-800 bg-gradient-to-b from-zinc-900 to-zinc-950 p-8 sm:p-12 shadow-2xl">
+                <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(79,70,229,0.08),transparent_50%)]"></div>
+                <div class="relative max-w-3xl space-y-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">Project Intelligence Brief</span>
+                    <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">Tracking Structural Shifts in the El Paso Housing Ecosystem</h2>
+                    <p class="text-zinc-400 text-base sm:text-lg leading-relaxed">
+                        This terminal aggregates open, proprietary, and municipal real estate layers across El Paso, Texas[cite: 1160, 1175]. By cross-examining institutional acquisitions against community long-term leasing realities, the project documents how systemic supply reallocations alter community resilience metrics[cite: 1159, 1175].
                     </p>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Active Market Rental Inventory</p><h3 id="kpi-str-count" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-slate-500">Average Monthly Lease Price</p><h3 id="kpi-str-adr" class="text-3xl font-bold text-slate-900 mt-2">--</h3></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-zinc-900/40 border border-zinc-800 p-6 rounded-xl space-y-3">
+                    <div class="text-indigo-400 text-xl font-bold">📊 Corporate Acquisitions Architecture</div>
+                    <p class="text-sm text-zinc-400 leading-relaxed">
+                        Maps institutional investments and investment networks targeting 1-4 unit residential assets[cite: 1164, 1175]. This view highlights regional buyer footprints and monitors real-time changes in single-family residential properties transitioning away from traditional local homeownership.
+                    </p>
+                    <button onclick="switchTab('corporate')" class="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center space-x-1 transition-colors">
+                        <span>Explore Corporate Portfolios</span> <span>→</span>
+                    </button>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
-                        <h3 id="chart-title" class="text-lg font-bold text-slate-900 mb-1"><i class="fa-solid fa-tags text-blue-600 mr-2"></i> Monthly Lease Pricing Distribution</h3>
-                        <p id="chart-subtitle" class="text-xs text-slate-500 mb-6">Active lease listings binned into standard monthly pricing brackets.</p>
-                        <div class="flex-1 relative w-full h-64"><canvas id="strChart"></canvas></div>
-                    </div>
-                    
-                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <h3 class="text-lg font-bold text-slate-900 mb-4"><i class="fa-solid fa-calculator text-blue-600 mr-2"></i> Community Rent Burden Simulator</h3>
+                <div class="bg-zinc-900/40 border border-zinc-800 p-6 rounded-xl space-y-3">
+                    <div class="text-emerald-400 text-xl font-bold">🏨 Community Rent Burden Simulator</div>
+                    <p class="text-sm text-zinc-400 leading-relaxed">
+                        Integrates standard monthly rental market metrics with customized regional household economic indicators[cite: 1159, 1175]. Adjust sliders to calculate max-income margins and physically watch the available leasing pool expand or shrink in response to market real estate realities.
+                    </p>
+                    <button onclick="switchTab('affordability')" class="text-xs font-medium text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 transition-colors">
+                        <span>Run Affordability Models</span> <span>→</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="content-corporate" class="hidden space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
+                    <span class="text-xs text-zinc-500 font-mono tracking-wider uppercase">Monitored Portfolio Base</span>
+                    <div class="text-2xl font-bold text-white mt-1" id="metric-total-buys">--</div>
+                    <p class="text-xs text-zinc-400 mt-1">Acquisitions by tracked corporate investment entities</p>
+                </div>
+                <div class="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
+                    <span class="text-xs text-zinc-500 font-mono tracking-wider uppercase">Out-of-Town Entities</span>
+                    <div class="text-2xl font-bold text-indigo-400 mt-1" id="metric-out-town">--</div>
+                    <p class="text-xs text-zinc-400 mt-1">Buyers registered outside the El Paso regional grid</p>
+                </div>
+                <div class="bg-zinc-900 border border-zinc-800 p-5 rounded-xl">
+                    <span class="text-xs text-zinc-500 font-mono tracking-wider uppercase">STR Conversion Pipeline</span>
+                    <div class="text-2xl font-bold text-amber-500 mt-1" id="metric-conversions">--</div>
+                    <p class="text-xs text-zinc-400 mt-1">Acquisitions matched directly against short-term travel systems</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 h-[550px] rounded-xl border border-zinc-800 overflow-hidden relative shadow-lg bg-zinc-950">
+                    <div id="corporateMap" class="w-full h-full"></div>
+                </div>
+                
+                <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col justify-between space-y-6">
+                    <div class="space-y-4">
+                        <h3 class="text-base font-bold text-white tracking-tight">Geospatial Filter Controls</h3>
+                        <p class="text-xs text-zinc-400 leading-relaxed">
+                            Each node registers an individual single-family home or residential tract acquired by investment entities. Use the classifications below to isolate operational profiles on the active vector map.
+                        </p>
                         
-                        <div class="space-y-6">
-                            <div>
-                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Target Annual Household Income:</label><span id="val-income" class="font-bold text-blue-600">$48,000</span></div>
-                                <input id="slider-income" type="range" min="20000" max="120000" step="2500" value="48000" oninput="runAffordabilitySimulation()" class="w-full accent-blue-600">
-                                <p class="text-xs text-slate-400 mt-1">Adjust to match targeted baseline local economic earnings.</p>
+                        <div class="space-y-2 font-mono text-xs pt-2">
+                            <div class="flex items-center space-x-3 p-2 rounded bg-zinc-950/50 border border-zinc-800/60">
+                                <span class="w-3 h-3 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"></span>
+                                <span class="text-zinc-300">Out-of-Town Corporate Buyer</span>
                             </div>
-                            <div>
-                                <div class="flex justify-between text-sm mb-2"><label class="font-medium text-slate-700">Max Income Allocation for Housing:</label><span id="val-allocation" class="font-bold text-blue-600">30%</span></div>
-                                <input id="slider-allocation" type="range" min="15" max="50" step="1" value="30" oninput="runAffordabilitySimulation()" class="w-full accent-blue-600">
-                                <p class="text-xs text-slate-400 mt-1">30% is the federal standard boundary for a family to avoid being "rent burdened".</p>
+                            <div class="flex items-center space-x-3 p-2 rounded bg-zinc-950/50 border border-zinc-800/60">
+                                <span class="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
+                                <span class="text-zinc-300">Local Corporate Buyer</span>
+                            </div>
+                            <div class="flex items-center space-x-3 p-2 rounded bg-zinc-950/50 border border-zinc-800/60">
+                                <span class="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"></span>
+                                <span class="text-zinc-300">Vacation Rental (STR) Match</span>
                             </div>
                         </div>
-                        <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-100 space-y-3">
-                            <div class="flex justify-between items-center"><span class="text-sm font-semibold text-slate-600">Affordable Monthly Rent Ceiling:</span><span id="calc-ceiling" class="text-xl font-bold text-slate-900">$0</span></div>
-                            <div class="flex justify-between items-center pt-3 border-t border-slate-200"><span class="text-sm font-semibold text-slate-600">Inventory Exceeding This Ceiling:</span><span id="calc-exceeding" class="text-xl font-bold text-red-600">0 Units</span></div>
+                    </div>
+
+                    <div class="bg-zinc-950 rounded-lg p-3 border border-zinc-800 font-mono text-[10px] text-zinc-500 space-y-1">
+                        <div class="text-zinc-400 font-semibold uppercase tracking-wider text-[9px] mb-1">Data Feed Diagnostics</div>
+                        <div id="diag-investor">Investor CSV: Loading...</div>
+                        <div id="diag-trends">Displacement CSV: Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="content-affordability" class="hidden space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between border-b border-zinc-800 pb-4 gap-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white tracking-tight">Community Rent Burden & Affordability Simulator</h2>
+                    <p class="text-xs text-zinc-400 mt-0.5">Calculating the gap between local income thresholds and real-time residential market asking rents[cite: 1159, 1175].</p>
+                </div>
+                <div class="flex items-center space-x-3 bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                    <div class="text-right">
+                        <label for="linkSimulatorToggle" class="text-xs font-semibold text-zinc-200 block cursor-pointer select-none">Link Simulator to Live Listings</label>
+                        <span class="text-[10px] text-zinc-500 block">Filter charts and map vectors in real time </span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="linkSimulatorToggle" class="sr-only peer" checked onchange="handleSimulatorUpdate()">
+                        <div class="w-9 h-5 bg-zinc-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-zinc-900 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-zinc-400 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-6">
+                    <h3 class="text-xs font-bold font-mono tracking-wider text-zinc-400 uppercase">Simulator Parameters</h3>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-zinc-300 font-medium">Assumed Household Income</span>
+                            <span class="text-indigo-400 font-mono font-bold" id="lbl-income">$45,000</span>
+                        </div>
+                        <input id="slide-income" type="range" min="15000" max="100000" step="1000" value="45000" 
+                               class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                               oninput="handleSimulatorUpdate()">
+                        <div class="flex justify-between text-[10px] text-zinc-600 font-mono">
+                            <span>$15k</span>
+                            <span>$100k</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-zinc-300 font-medium">Income Allocated to Housing</span>
+                            <span class="text-emerald-400 font-mono font-bold" id="lbl-allocation">30%</span>
+                        </div>
+                        <input id="slide-allocation" type="range" min="15" max="50" step="1" value="30" 
+                               class="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                               oninput="handleSimulatorUpdate()">
+                        <div class="flex justify-between text-[10px] text-zinc-600 font-mono">
+                            <span>15% (Ideal)</span>
+                            <span>50% (Severe Burden)</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-zinc-950 p-4 rounded-lg border border-zinc-800/80 space-y-3">
+                        <div>
+                            <span class="text-[10px] font-mono uppercase text-zinc-500 tracking-wider">Maximum Affordable Rent</span>
+                            <div class="text-xl font-bold text-white font-mono mt-0.5" id="calc-rent-ceiling">$0 / mo</div>
+                        </div>
+                        <div class="border-t border-zinc-800/60 pt-2">
+                            <span class="text-[10px] font-mono uppercase text-zinc-500 tracking-wider">Market Access Threshold</span>
+                            <div class="text-sm font-semibold text-zinc-300 mt-0.5" id="calc-market-share">Calculating availability...</div>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] text-zinc-500 leading-relaxed italic border-l-2 border-zinc-700 pl-3">
+                        Traditional financial baseline formulas flag housing costs exceeding 30% of total household gross yields as an active rent burden constraint.
+                    </p>
+                </div>
+
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                            <span class="text-xs font-mono text-zinc-500 tracking-wider uppercase block">Available Rental Inventory</span>
+                            <div class="text-2xl font-bold font-mono text-white mt-1" id="afford-units-count">--</div>
+                            <p class="text-xs text-zinc-400 mt-0.5" id="afford-units-desc">Properties matching current criteria</p>
+                        </div>
+                        <div class="bg-zinc-900 border border-zinc-800 p-4 rounded-xl">
+                            <span class="text-xs font-mono text-zinc-500 tracking-wider uppercase block">Market Retention Rate</span>
+                            <div class="text-2xl font-bold font-mono text-indigo-400 mt-1" id="afford-percent-count">--</div>
+                            <p class="text-xs text-zinc-400 mt-0.5">Share of tracked listings remaining accessible </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-xs font-bold font-mono tracking-wider text-zinc-400 uppercase">Leasing Price Distribution Array</h4>
+                            <span id="chart-status-badge" class="text-[10px] px-2 py-0.5 rounded font-mono bg-zinc-950 border border-zinc-800 text-zinc-400"></span>
+                        </div>
+                        <div class="h-64 relative w-full">
+                            <canvas id="rentDistributionChart"></canvas>
                         </div>
                     </div>
                 </div>
             </div>
+        </section>
 
-        </div>
     </main>
 
+    <footer class="border-t border-zinc-800 bg-zinc-950 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center font-mono text-[10px] text-zinc-600">
+            El Paso Housing Market Dynamics Tracker • Built for Static Client Delivery via GitHub Pages[cite: 1159, 1170].
+        </div>
+    </footer>
+
     <script>
-        let dataset = { investor: [], str: [], displacement: [], avgAdr: 150.0 };
-        let leafletMap = null;
-        let localLayer = null, nonLocalLayer = null, strConversionLayer = null;
-        let strChartInstance = null;
-        let corporateZipChartInstance = null;
-        let currentZipFilter = null; 
+        // Data Feed Repositories Arrays
+        let rawInvestorData = [];
+        let rawDisplacementData = [];
+        let rawRentalData = []; // Populated via active_str_listings.csv monthly leases [cite: 1159, 1175]
 
-        // Bounding Box check for El Paso coordinates
-        function getElPasoCoordinates(row) {
-            let latKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'latitude' || k.toLowerCase().trim() === 'lat');
-            let lonKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'longitude' || k.toLowerCase().trim() === 'lon' || k.toLowerCase().trim() === 'lng');
-            
-            if (latKey && lonKey && row[latKey] && row[lonKey]) {
-                let lat = parseFloat(row[latKey]);
-                let lon = parseFloat(row[lonKey]);
-                if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
-            }
-            return null;
-        }
+        // Map and Graphics Object Storage References [cite: 1419]
+        let corporateMapInstance = null;
+        let corporateLayerGroup = null;
+        let rentDistributionChartInstance = null;
 
-        function getPropertyZip(row) {
-            let zKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'szip' || k.toLowerCase().trim() === 'szip5' || k.toLowerCase().trim() === 'szipcode');
-            let zip = zKey && row[zKey] ? String(row[zKey]).trim() : "";
-            if (zip.length >= 5) return zip.substring(0, 5);
-            return "";
-        }
-
-        // Strict evaluation matching user column requirements
-        function checkIsMailingLocal(row) {
-            let cityKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_city');
-            let stateKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'mail_state2');
-            
-            if (cityKey && stateKey) {
-                let city = String(row[cityKey]).toLowerCase().trim();
-                let state = String(row[stateKey]).toLowerCase().trim();
-                if (city === 'el paso' && state === 'tx') return 'local';
-            }
-            return 'non-local'; 
-        }
-
-        function cleanString(val) {
-            if (!val) return "";
-            return String(val).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-        }
-
-        function getRowIdentificationTokens(row) {
-            let tokens = new Set();
-            for (let key in row) {
-                let kLower = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-                if (kLower.includes('parcel') || kLower.includes('id') || kLower.includes('account') || kLower.includes('address') || kLower.includes('fid')) {
-                    let val = String(row[key]).trim().toLowerCase();
-                    if (val && val !== 'undefined' && val !== 'null' && val !== '') tokens.add(val);
-                }
-            }
-            return tokens;
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            Promise.all([
-                fetchCSV('./data/investor_buys.csv', 'diag-investor'),
-                fetchCSV('./data/active_str_listings.csv', 'diag-str'),
-                fetchCSV('./data/local_displacement_trends.csv', 'diag-displacement')
-            ]).then(([investorData, strData, displacementData]) => {
-                
-                if(investorData) dataset.investor = investorData;
-                if(displacementData) dataset.displacement = displacementData;
-                
-                if(strData && strData.length > 0) {
-                    dataset.str = strData;
-                    let prices = strData.map(r => {
-                        let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
-                        if (!pKey || !r[pKey]) return null;
-                        let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
-                        return isNaN(val) ? null : val;
-                    }).filter(v => v !== null && v > 0);
-
-                    if (prices.length > 0) {
-                        dataset.avgAdr = prices.reduce((a, b) => a + b, 0) / prices.length;
-                    }
-                }
-
-                initializeMetrics();
-                runAffordabilitySimulation();
-
-                document.getElementById('loading-overlay').style.opacity = '0';
-                setTimeout(() => document.getElementById('loading-overlay').remove(), 500);
-
-            }).catch(err => {
-                console.error(err);
-                document.getElementById('loading-text').innerText = "Sync Halt";
-            });
+        // Document Bootstrap Logic Event Listener
+        document.addEventListener("DOMContentLoaded", function() {
+            initializeDatabaseFeeds();
         });
 
-        function fetchCSV(path, diagElementId) {
-            return new Promise((resolve, reject) => {
-                Papa.parse(path, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: true,
-                    trimHeaders: true, 
-                    complete: (results) => {
-                        if(results.data && results.data.length > 0) {
-                            document.getElementById(diagElementId).innerHTML = `✅ ${path.split('/').pop()} (${results.data.length} rows)`;
-                        }
-                        resolve(results.data);
-                    },
-                    error: (error) => {
-                        document.getElementById(diagElementId).innerHTML = `❌ ${path.split('/').pop()} - Not Found`;
-                        reject(error);
+        // Tab View Router Engine
+        function switchTab(targetTabId) {
+            const tabs = ['overview', 'corporate', 'affordability'];
+            tabs.forEach(tab => {
+                const button = document.getElementById(`tab-${tab}`);
+                const layer = document.getElementById(`content-${tab}`);
+                
+                if (tab === targetTabId) {
+                    button.classList.remove('text-zinc-400', 'hover:text-zinc-200');
+                    button.classList.add('text-white', 'bg-indigo-600', 'shadow-sm');
+                    layer.classList.remove('hidden');
+                } else {
+                    button.classList.add('text-zinc-400', 'hover:text-zinc-200');
+                    button.classList.remove('text-white', 'bg-indigo-600', 'shadow-sm');
+                    layer.classList.add('hidden');
+                }
+            });
+
+            // Map Layer Refreshes if Corporate Dashboard Canvas is Selected
+            if (targetTabId === 'corporate') {
+                setTimeout(() => {
+                    if (!corporateMapInstance) {
+                        buildCorporateGeospatialEngine();
+                    } else {
+                        corporateMapInstance.invalidateSize();
                     }
-                });
+                }, 100);
+            }
+        }
+
+        // Clean Header Property Utilities
+        function sanitizeCsvHeaders(headersArray) {
+            return headersArray.map(header => {
+                if (!header) return '';
+                return header.toString().replace(/["']/g, "").trim().toLowerCase();
             });
         }
 
-        function initializeMetrics() {
-            const totalBuys = dataset.investor.length;
-            const totalConv = dataset.displacement.length;
-            const convPace = totalBuys > 0 ? ((totalConv / totalBuys) * 100).toFixed(1) : "0.0";
+        // CSV File Data Pipeline Processor
+        function initializeDatabaseFeeds() {
+            // 1. Process Tracked Corporate Purchases CSV Data Stream
+            Papa.parse("data/investor_buys.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                beforeFirstChunk: function(chunk) {
+                    let lines = chunk.split(/\r\n|\n/);
+                    if (lines.length > 0) {
+                        let originalHeaders = lines[0].split(",");
+                        let cleaned = sanitizeCsvHeaders(originalHeaders);
+                        lines[0] = cleaned.join(",");
+                    }
+                    return lines.join("\n");
+                },
+                complete: function(results) {
+                    rawInvestorData = results.data;
+                    document.getElementById('diag-investor').innerText = `Investor CSV: Loaded (${rawInvestorData.length} rows)`;
+                    document.getElementById('diag-investor').classList.replace('text-zinc-500', 'text-emerald-500');
+                    processDataPipelinesIfReady();
+                },
+                error: function(err) {
+                    document.getElementById('diag-investor').innerText = `Investor CSV: Error parsing data stream`;
+                    document.getElementById('diag-investor').classList.replace('text-zinc-500', 'text-red-500');
+                }
+            });
 
-            document.getElementById('kpi-buys').innerText = totalBuys.toLocaleString();
-            document.getElementById('kpi-conv').innerText = totalConv.toLocaleString();
-            document.getElementById('kpi-pace').innerText = convPace + "%";
+            // 2. Process Cross-Matched Housing Pipeline Conversions Data Stream
+            Papa.parse("data/local_displacement_trends.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                beforeFirstChunk: function(chunk) {
+                    let lines = chunk.split(/\r\n|\n/);
+                    if (lines.length > 0) {
+                        let originalHeaders = lines[0].split(",");
+                        let cleaned = sanitizeCsvHeaders(originalHeaders);
+                        lines[0] = cleaned.join(",");
+                    }
+                    return lines.join("\n");
+                },
+                complete: function(results) {
+                    rawDisplacementData = results.data;
+                    document.getElementById('diag-trends').innerText = `Displacement CSV: Loaded (${rawDisplacementData.length} rows)`;
+                    document.getElementById('diag-trends').classList.replace('text-zinc-500', 'text-emerald-500');
+                    processDataPipelinesIfReady();
+                },
+                error: function(err) {
+                    document.getElementById('diag-trends').innerText = `Displacement CSV: Error parsing data stream`;
+                    document.getElementById('diag-trends').classList.replace('text-zinc-500', 'text-red-500');
+                }
+            });
 
-            document.getElementById('kpi-str-count').innerText = dataset.str.length.toLocaleString();
-            document.getElementById('kpi-str-adr').innerText = "$" + dataset.avgAdr.toFixed(2);
+            // 3. Process Active Market Long-Term Lease Distribution Array [cite: 1159, 1175]
+            Papa.parse("data/active_str_listings.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                beforeFirstChunk: function(chunk) {
+                    let lines = chunk.split(/\r\n|\n/);
+                    if (lines.length > 0) {
+                        let originalHeaders = lines[0].split(",");
+                        let cleaned = sanitizeCsvHeaders(originalHeaders);
+                        lines[0] = cleaned.join(",");
+                    }
+                    return lines.join("\n");
+                },
+                complete: function(results) {
+                    // Filter out unpriced data points
+                    rawRentalData = results.data.filter(row => {
+                        if (!row.price) return false;
+                        let val = parseFloat(row.price.toString().replace(/[$,]/g, ''));
+                        return !isNaN(val) && val > 0;
+                    });
+                    processDataPipelinesIfReady();
+                }
+            });
         }
 
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+        // Consolidated Pipeline Trigger Verification Engine
+        function processDataPipelinesIfReady() {
+            if (rawInvestorData.length > 0) {
+                // Update Corporate Purchases Dashboard Telemetry Fields
+                document.getElementById('metric-total-buys').innerText = rawInvestorData.length.toLocaleString();
+                
+                // Identify properties based on matching mailing parameters [cite: 861, 862]
+                let outOfTownCount = rawInvestorData.filter(item => {
+                    let city = item.mail_city ? item.mail_city.toString().toLowerCase().trim() : '';
+                    let state = item.mail_state2 ? item.mail_state2.toString().toUpperCase().trim() : '';
+                    if (city === 'el paso' || city === 'elpaso') return false;
+                    return true;
+                }).length;
+                
+                document.getElementById('metric-out-town').innerText = outOfTownCount.toLocaleString();
+                document.getElementById('metric-conversions').innerText = rawDisplacementData.length.toLocaleString();
+                
+                if (corporateMapInstance) {
+                    renderCorporateGeospatialMarkers();
+                }
+            }
             
-            document.getElementById(tabId).classList.remove('hidden');
-            document.getElementById('btn-' + tabId).classList.add('active');
-
-            if(tabId === 'tab-corporate') {
-                renderLeafletMap();
-                renderCorporateZipChart();
-            } else if (tabId === 'tab-str') {
-                renderChartJS();
+            if (rawRentalData.length > 0) {
+                handleSimulatorUpdate();
             }
         }
 
-        function renderLeafletMap() {
-            if (leafletMap) {
-                setTimeout(() => leafletMap.invalidateSize(), 50);
-                return;
+        /* ==================== GEOSPATIAL MAP COMPILER ==================== */
+        function buildCorporateGeospatialEngine() {
+            // Center map frames near central geographic coordinates of El Paso
+            corporateMapInstance = L.map('corporateMap', {
+                center: [31.7619, -106.4850],
+                zoom: 11,
+                zoomControl: false
+            });
+
+            // Add standard modern minimalist vector placement controls
+            L.control.zoom({ position: 'topright' }).addTo(corporateMapInstance);
+
+            // Establish modern premium dark matter basemap tiles [cite: 1222]
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(corporateMapInstance);
+
+            corporateLayerGroup = L.layerGroup().addTo(corporateMapInstance);
+            renderCorporateGeospatialMarkers();
+        }
+
+        function renderCorporateGeospatialMarkers() {
+            if (!corporateLayerGroup) return;
+            corporateLayerGroup.clearLayers();
+
+            // Build structural lookup map targeting conversion entries [cite: 770, 771]
+            const displacementRecordsMap = new Map();
+            rawDisplacementData.forEach(row => {
+                if (row.parcelnumb) {
+                    displacementRecordsMap.set(row.parcelnumb.toString().trim(), row);
+                }
+            });
+
+            // Cycle properties inside institutional file layers
+            rawInvestorData.forEach(property => {
+                let lat = parseFloat(property.latitude);
+                let lon = parseFloat(property.longitude);
+                if (isNaN(lat) || !lon) return;
+
+                let parcelId = property.parcelnumb ? property.parcelnumb.toString().trim() : '';
+                let isShortTermConversion = displacementRecordsMap.has(parcelId);
+
+                // Check geographical orientation parameters to establish buyer profiles [cite: 861, 862]
+                let city = property.mail_city ? property.mail_city.toString().toLowerCase().trim() : '';
+                let isLocalBuyer = (city === 'el paso' || city === 'elpaso');
+
+                // Establish marker color variables matching visual legends
+                let nodalHexColor = "#10b981"; // Emerald: Local Corporate Buyer
+                if (!isLocalBuyer) nodalHexColor = "#6366f1"; // Indigo: Out-of-Town Corporate Buyer
+                if (isShortTermConversion) nodalHexColor = "#f59e0b"; // Amber: Vacation Rental Conversion Match
+
+                // Build performance circle vector objects
+                let geometryNodeMarker = L.circleMarker([lat, lon], {
+                    radius: 4.5,
+                    fillColor: nodalHexColor,
+                    color: "#09090b",
+                    weight: 0.5,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+
+                // Generate popup metadata layout text elements
+                let layoutDetailsHtml = `
+                    <div class="bg-zinc-950 text-zinc-100 p-2 rounded text-xs font-mono border border-zinc-800 space-y-1" style="min-width: 200px;">
+                        <div class="text-indigo-400 font-bold border-b border-zinc-800 pb-1">Asset Portfolio Record</div>
+                        <div><span class="text-zinc-500">Parcel:</span> ${property.parcelnumb || 'N/A'}</div>
+                        <div><span class="text-zinc-500">Owner:</span> ${property.owner || 'Corporate Registry'}</div>
+                        <div><span class="text-zinc-500">Mailing Location:</span> ${property.mail_city || 'Unknown'}, ${property.mail_state2 || 'XX'}</div>
+                        <div class="pt-1 border-t border-zinc-800/60 mt-1 text-[10px]">
+                            ${isShortTermConversion ? '⚠️ Identified STR Conversion Record' : '✓ Residential Asset Profile'}
+                        </div>
+                    </div>
+                `;
+
+                geometryNodeMarker.bindPopup(layoutDetailsHtml, { className: 'custom-leaflet-popup', maxWidth: 300 });
+                corporateLayerGroup.addLayer(geometryNodeMarker);
+            });
+        }
+
+        /* ==================== SIMULATOR DATA PRESENTATION LOGIC ==================== */
+        function handleSimulatorUpdate() {
+            // Extract interface input parameter variables
+            const annualIncomeValue = parseFloat(document.getElementById('slide-income').value);
+            const utilizationPercentage = parseFloat(document.getElementById('slide-allocation').value) / 100;
+            const isFilterLinkActive = document.getElementById('linkSimulatorToggle').checked; // [cite: 1423, 1427]
+
+            // Update interactive dashboard numerical label outputs
+            document.getElementById('lbl-income').innerText = `$${annualIncomeValue.toLocaleString()}`;
+            document.getElementById('lbl-allocation').innerText = `${Math.round(utilizationPercentage * 100)}%`;
+
+            // Calculate monthly rental limits based on parameters
+            const maximumAffordableMonthlyRent = (annualIncomeValue * utilizationPercentage) / 12;
+            document.getElementById('calc-rent-ceiling').innerText = `$${Math.round(maximumAffordableMonthlyRent).toLocaleString()} / mo`;
+
+            // Process rental price arrays dynamically [cite: 1423, 1427]
+            let analyzedRentalDataset = [...rawRentalData];
+            
+            if (isFilterLinkActive) {
+                // Filter listings to only show properties below the calculated ceiling [cite: 1423, 1427]
+                analyzedRentalDataset = rawRentalData.filter(unit => {
+                    let exactRentPrice = parseFloat(unit.price.toString().replace(/[$,]/g, ''));
+                    return exactRentPrice <= maximumAffordableMonthlyRent;
+                });
+                
+                document.getElementById('chart-status-badge').innerText = `Affordable Filtered Market Mode [cite: 1420]`;
+                document.getElementById('chart-status-badge').classList.replace('text-zinc-400', 'text-amber-400');
+            } else {
+                document.getElementById('chart-status-badge').innerText = `Full Macro Distribution Mode [cite: 1420]`;
+                document.getElementById('chart-status-badge').classList.replace('text-amber-400', 'text-zinc-400');
             }
 
-            leafletMap = L.map('map-container').setView([31.7619, -106.4850], 10);
+            // Update quantitative unit counts on the dashboard layout
+            const baselineTotalUnitsCount = rawRentalData.length;
+            const currentFilteredUnitsCount = analyzedRentalDataset.length;
+            const accessRetentionPercentage = baselineTotalUnitsCount > 0 ? ((currentFilteredUnitsCount / baselineTotalUnitsCount) * 100).toFixed(1) : 0;
+
+            document.getElementById('afford-units-count').innerText = `${currentFilteredUnitsCount.toLocaleString()} Listings`;
+            document.getElementById('afford-percent-count').innerText = `${accessRetentionPercentage}%`;
+
+            // Adjust descriptive readout messaging text
+            if (isFilterLinkActive) {
+                document.getElementById('afford-units-desc').innerText = `Properties below the $${Math.round(maximumAffordableMonthlyRent).toLocaleString()}/mo affordability ceiling [cite: 1423, 1427]`;
+                document.getElementById('calc-market-share').innerText = `Families retain access to ${accessRetentionPercentage}% of active listings.`;
+                
+                // Turn count indicators red if parameters exclude all properties 
+                if (currentFilteredUnitsCount === 0) {
+                    document.getElementById('afford-units-count').classList.add('text-red-500');
+                } else {
+                    document.getElementById('afford-units-count').classList.remove('text-red-500');
+                }
+            } else {
+                document.getElementById('afford-units-desc').innerText = `Total evaluated market leasing options (Full view enabled)`;
+                document.getElementById('calc-market-share').innerText = `Ceiling set at $${Math.round(maximumAffordableMonthlyRent).toLocaleString()}/mo (Link toggle off).`;
+                document.getElementById('afford-units-count').classList.remove('text-red-500');
+            }
+
+            // Redraw Chart components with current active filtered/macro data slice 
+            generateDistributionChartVisuals(analyzedRentalDataset, isFilterLinkActive ? null : maximumAffordableMonthlyRent);
+        }
+
+        function generateDistributionChartVisuals(targetDataPoints, horizontalCeilingLineValue) {
+            const chartCanvasContext = document.getElementById('rentDistributionChart').getContext('2d');
             
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
-            }).addTo(leafletMap);
-
-            localLayer = L.layerGroup().addTo(leafletMap);
-            nonLocalLayer = L.layerGroup().addTo(leafletMap);
-            strConversionLayer = L.layerGroup().addTo(leafletMap);
-
-            let overlayMaps = {
-                "<span class='text-blue-500 font-bold text-lg'>■</span> Local Corporate (El Paso, TX Mailing)": localLayer,
-                "<span class='text-red-500 font-bold text-lg'>■</span> Out-of-Town Corporate (Mailing Outside El Paso)": nonLocalLayer,
-                "<span class='text-amber-500 font-bold text-lg'>●</span> STR Conversions (Matches)": strConversionLayer
+            // Build standardized pricing brackets
+            const distributionBrackets = {
+                "Under $800": 0,
+                "$800 - $1,100": 0,
+                "$1,100 - $1,400": 0,
+                "$1,400 - $1,700": 0,
+                "$1,700 - $2,000": 0,
+                "Over $2,000": 0
             };
 
-            L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(leafletMap);
+            // Increment values based on dataset
+            targetDataPoints.forEach(row => {
+                let rent = parseFloat(row.price.toString().replace(/[$,]/g, ''));
+                if (isNaN(rent)) return;
 
-            populateMapMarkers();
-        }
+                if (rent < 800) distributionBrackets["Under $800"]++;
+                else if (rent >= 800 && rent < 1100) distributionBrackets["$800 - $1,100"]++;
+                else if (rent >= 1100 && rent < 1400) distributionBrackets["$1,100 - $1,400"]++;
+                else if (rent >= 1400 && rent < 1700) distributionBrackets["$1,400 - $1,700"]++;
+                else if (rent >= 1700 && rent < 2000) distributionBrackets["$1,700 - $2,000"]++;
+                else distributionBrackets["Over $2,000"]++;
+            });
 
-        function populateMapMarkers() {
-            if (!leafletMap) return;
+            const labels = Object.keys(distributionBrackets);
+            const values = Object.values(distributionBrackets);
 
-            localLayer.clearLayers();
-            nonLocalLayer.clearLayers();
-            strConversionLayer.clearLayers();
-
-            const ind = document.getElementById('active-filter-indicator');
-            if (currentZipFilter) {
-                ind.innerHTML = `Active Filter: ZIP ${currentZipFilter} <button onclick='clearZipFilter()' class='ml-1.5 font-bold hover:text-red-600'>&times;</button>`;
-                ind.classList.remove('hidden');
+            // Reinitialize or update the Chart.js instance to prevent canvas rendering errors
+            if (rentDistributionChartInstance) {
+                rentDistributionChartInstance.data.labels = labels;
+                rentDistributionChartInstance.data.datasets[0].data = values;
+                rentDistributionChartInstance.update();
             } else {
-                ind.classList.add('hidden');
-            }
-
-            let investorLookupMap = new Map();
-            dataset.investor.forEach(row => {
-                let tokens = getRowIdentificationTokens(row);
-                tokens.forEach(token => investorLookupMap.set(token, row));
-            });
-
-            let parcelIndex = new Map();
-            let addressIndex = new Map();
-            dataset.investor.forEach(row => {
-                ['parcelnumb', 'parcelnumb_no_formatting', 'alt_parcelnumb1', 'tax_id', 'geo_id', 'parcel'].forEach(key => {
-                    let cleanVal = cleanString(row[key]);
-                    if (cleanVal) parcelIndex.set(cleanVal, row);
-                });
-                ['address', 'original_address', 'mailadd'].forEach(key => {
-                    let cleanVal = cleanString(row[key]);
-                    if (cleanVal) addressIndex.set(cleanVal, row);
-                });
-            });
-
-            // 1. Plot Corporate Buyers
-            dataset.investor.forEach(d => {
-                let zip = getPropertyZip(d);
-                if (currentZipFilter && zip !== currentZipFilter) return;
-
-                let coords = getElPasoCoordinates(d);
-                if (coords) {
-                    let locality = checkIsMailingLocal(d);
-                    let marker = L.circleMarker(coords, {
-                        radius: 4.5,
-                        fillColor: locality === 'local' ? "#3b82f6" : "#ef4444", 
-                        color: "#ffffff",
-                        weight: 0.8,
-                        opacity: 1,
-                        fillOpacity: 0.75
-                    }).bindPopup(`<b>Corporate Purchase</b><br>ZIP Code: ${zip || 'Unknown'}<br>Mailing Origin: ${locality === 'local' ? 'Local (El Paso, TX)' : 'Out-of-Town Owner'}`);
-
-                    if (locality === 'local') localLayer.addLayer(marker);
-                    else nonLocalLayer.addLayer(marker);
-                }
-            });
-
-            // 2. Plot Relational STR Conversions
-            dataset.displacement.forEach(d => {
-                let coords = getElPasoCoordinates(d);
-                let matchingInvestorRow = null;
-
-                let dTokens = getRowIdentificationTokens(d);
-                for (let token of dTokens) {
-                    if (investorLookupMap.has(token)) {
-                        matchingInvestorRow = investorLookupMap.get(token);
-                        if (!coords) coords = getElPasoCoordinates(matchingInvestorRow);
-                        break;
-                    }
-                }
-
-                if (!coords) {
-                    for (let key in d) {
-                        let val = cleanString(d[key]);
-                        if (!val || val.length <= 2) continue;
-                        if (parcelIndex.has(val)) { matchingInvestorRow = parcelIndex.get(val); coords = getElPasoCoordinates(matchingInvestorRow); break; }
-                        if (addressIndex.has(val)) { matchingInvestorRow = addressIndex.get(val); coords = getElPasoCoordinates(addressIndex.get(val)); break; }
-                    }
-                }
-
-                let zip = getPropertyZip(d);
-                if (!zip && matchingInvestorRow) zip = getPropertyZip(matchingInvestorRow);
-
-                if (currentZipFilter && zip !== currentZipFilter) return;
-
-                if (coords) {
-                    let marker = L.circleMarker(coords, {
-                        radius: 6.5,
-                        fillColor: "#f59e0b", 
-                        color: "#1e1b4b",
-                        weight: 1.2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    }).bindPopup(`<b>STR Conversion Match</b><br>ZIP Code: ${zip || 'Unknown'}<br>Repurposed family residence.`);
-                    strConversionLayer.addLayer(marker);
-                }
-            });
-
-            updateChartColors();
-        }
-
-        function clearZipFilter() {
-            currentZipFilter = null;
-            populateMapMarkers();
-        }
-
-        function getZipCountsObject() {
-            let zipCounts = {};
-            dataset.investor.forEach(row => {
-                let zip = getPropertyZip(row);
-                if(zip && zip.length === 5) zipCounts[zip] = (zipCounts[zip] || 0) + 1;
-            });
-            return zipCounts;
-        }
-
-        function updateChartColors() {
-            if (!corporateZipChartInstance) return;
-            let sortedZips = Object.entries(getZipCountsObject()).sort((a, b) => b[1] - a[1]);
-            let bgColors = sortedZips.map(item => {
-                return (currentZipFilter && item[0] === currentZipFilter) ? 'rgba(29, 78, 216, 1)' : 'rgba(59, 130, 246, 0.75)';
-            });
-            corporateZipChartInstance.data.datasets[0].backgroundColor = bgColors;
-            corporateZipChartInstance.update();
-        }
-
-        function renderCorporateZipChart() {
-            if (corporateZipChartInstance || dataset.investor.length === 0) return;
-            const ctx = document.getElementById('corporateZipChart').getContext('2d');
-            
-            let sortedZips = Object.entries(getZipCountsObject()).sort((a, b) => b[1] - a[1]);
-            let labels = sortedZips.map(item => `ZIP ${item[0]}`);
-            let counts = sortedZips.map(item => item[1]);
-
-            corporateZipChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Acquisitions Mapped',
-                        data: counts,
-                        backgroundColor: counts.map(() => 'rgba(59, 130, 246, 0.75)'),
-                        borderColor: 'rgba(59, 130, 246, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    onClick: (e, elements) => {
-                        if (elements.length > 0) {
-                            const idx = elements[0].index;
-                            const label = corporateZipChartInstance.data.labels[idx];
-                            const zip = label.replace("ZIP ", "").trim();
-                            currentZipFilter = (currentZipFilter === zip) ? null : zip;
-                            populateMapMarkers();
-                        }
+                rentDistributionChartInstance = new Chart(chartCanvasContext, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Available Active Units Count',
+                            data: values,
+                            backgroundColor: 'rgba(99, 102, 241, 0.45)',
+                            borderColor: '#6366f1',
+                            borderWidth: 1.5,
+                            hoverBackgroundColor: 'rgba(99, 102, 241, 0.7)',
+                            borderRadius: 4
+                        }]
                     },
-                    scales: {
-                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
-                        x: { grid: { display: false } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#18181b',
+                                titleFont: { family: 'monospace' },
+                                bodyFont: { family: 'monospace' },
+                                borderColor: '#27272a',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: '#27272a', drawOnChartArea: true },
+                                ticks: { color: '#a1a1aa', font: { family: 'monospace', size: 10 } }
+                            },
+                            y: {
+                                grid: { color: '#27272a', drawOnChartArea: true },
+                                ticks: { color: '#a1a1aa', font: { family: 'monospace', size: 10 } },
+                                beginAtZero: true
+                            }
+                        }
                     }
-                }
-            });
-        }
-
-        // FIXED ENGINE MODULE: Automatically groups long-term monthly lease metrics evenly
-        function renderChartJS() {
-            if (strChartInstance || dataset.str.length === 0) return;
-            const ctx = document.getElementById('strChart').getContext('2d');
-            
-            let validPrices = dataset.str.map(r => {
-                let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
-                if (!pKey || !r[pKey]) return null;
-                let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
-                return isNaN(val) ? null : val;
-            }).filter(v => v !== null && v > 0);
-
-            if (validPrices.length === 0) return;
-
-            // Sort and grab standard baseline distributions to drop anomalies
-            validPrices.sort((a, b) => a - b);
-            let p98 = validPrices[Math.floor(validPrices.length * 0.98)] || validPrices[validPrices.length - 1];
-            let chartPrices = validPrices.filter(p => p <= p98);
-
-            let minPrice = Math.floor(Math.min(...chartPrices) / 100) * 100;
-            let maxPrice = Math.ceil(Math.max(...chartPrices) / 100) * 100;
-            
-            let binCount = 6;
-            let binSize = Math.ceil((maxPrice - minPrice) / binCount);
-            if (binSize < 50) binSize = 100; 
-
-            let bins = Array(binCount).fill(0);
-            chartPrices.forEach(p => {
-                let index = Math.floor((p - minPrice) / binSize);
-                if (index >= bins.length) index = bins.length - 1;
-                if (index >= 0) bins[index]++;
-            });
-
-            let labels = bins.map((_, i) => {
-                let start = minPrice + (i * binSize);
-                let end = minPrice + ((i + 1) * binSize);
-                return `$${start.toLocaleString()} - $${end.toLocaleString()}`;
-            });
-
-            strChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Active Lease Listings',
-                        data: bins,
-                        backgroundColor: 'rgba(37, 99, 235, 0.7)',
-                        borderColor: 'rgba(37, 99, 235, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        // COMPLETED RECONCILIATION MODULE: Calculates true local community rent burden benchmarks
-        function runAffordabilitySimulation() {
-            const income = parseFloat(document.getElementById('slider-income').value);
-            const allocation = parseFloat(document.getElementById('slider-allocation').value);
-
-            document.getElementById('val-income').innerText = "$" + income.toLocaleString();
-            document.getElementById('val-allocation').innerText = allocation + "%";
-
-            // Standard formula ceiling limit calculation
-            const affordableCeiling = (income / 12) * (allocation / 100);
-            
-            let exceedingCount = 0;
-            dataset.str.forEach(r => {
-                let pKey = Object.keys(r).find(k => k.toLowerCase().includes('price'));
-                if (!pKey || !r[pKey]) return;
-                let val = parseFloat(String(r[pKey]).replace(/[^0-9.]/g, ''));
-                if (!isNaN(val) && val > affordableCeiling) {
-                    exceedingCount++;
-                }
-            });
-
-            document.getElementById('calc-ceiling').innerText = "$" + affordableCeiling.toLocaleString('en-US', { maximumFractionDigits: 0 }) + " / mo";
-            document.getElementById('calc-exceeding').innerText = exceedingCount.toLocaleString() + " Listed Units";
+                });
+            }
         }
     </script>
 </body>
