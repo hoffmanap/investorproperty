@@ -1,5 +1,6 @@
 # El Paso Housing Market Dynamics Tracker
 ### Investor Buyouts & Short-Term Rental (STR) Impact Dashboard
+## Interactive Dashboard: https://hoffmanap.github.io/investorproperty/
 
 ## 📌 Project Purpose
 In recent years, the intersection of corporate real estate investment and the short-term rental (STR) market has fundamentally transformed local housing ecosystems. In El Paso, Texas, these dynamics heavily influence housing availability, neighborhood stability, and long-term rental pricing. 
